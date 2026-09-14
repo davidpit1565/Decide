@@ -1,11 +1,12 @@
 import SwiftUI
+import Foundation
 import DecideCore
 import DecideFlow
 
 /// What DECIDE knows, and how to make it forget. No account, no profile to fill in.
 struct ProfileView: View {
     @Environment(AppEnvironment.self) private var environment
-    @State private var showingPaywall = false
+    @State private var paywallContext: PaywallView.Context?
     @State private var confirmation: DataConfirmation?
 
     private enum DataConfirmation: String, Identifiable {
@@ -49,8 +50,8 @@ struct ProfileView: View {
             }
             .background(DecideColor.background)
             .navigationTitle("Profile")
-            .sheet(isPresented: $showingPaywall) {
-                PaywallView(context: .profile)
+            .sheet(item: $paywallContext) { context in
+                PaywallView(context: context)
             }
             .alert(
                 confirmation?.title ?? "",
@@ -91,7 +92,7 @@ struct ProfileView: View {
                             .font(DecideFont.footnote)
                             .foregroundStyle(DecideColor.secondaryText)
                             .fixedSize(horizontal: false, vertical: true)
-                        SecondaryButton(title: "See Pro") { showingPaywall = true }
+                        SecondaryButton(title: "See Pro") { paywallContext = .profile }
                     case .subscribed(let expires, let isInGracePeriod):
                         Text("Pro")
                             .font(DecideFont.headline)
@@ -124,7 +125,7 @@ struct ProfileView: View {
                                 .foregroundStyle(DecideColor.secondaryText)
                                 .fixedSize(horizontal: false, vertical: true)
                         }
-                        SecondaryButton(title: "See Pro") { showingPaywall = true }
+                        SecondaryButton(title: "See Pro") { paywallContext = .profile }
                     }
 
                     if environment.subscriptions.entitlement.isResolved {
@@ -152,7 +153,7 @@ struct ProfileView: View {
                         Text("Decision Memory is part of Pro.")
                             .font(DecideFont.callout)
                             .foregroundStyle(DecideColor.primaryText)
-                        SecondaryButton(title: "See Pro") { showingPaywall = true }
+                        SecondaryButton(title: "See Pro") { paywallContext = .memory }
                     }
                 }
             } else if environment.memory.isEmpty {

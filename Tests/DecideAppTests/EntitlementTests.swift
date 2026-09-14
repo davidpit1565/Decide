@@ -2,7 +2,8 @@ import XCTest
 import DecideCore
 @testable import Decide
 
-/// What Free gets, when the paywall may appear, and what a decision is called.
+/// What Free gets, and when the paywall may appear.
+@MainActor
 final class EntitlementTests: XCTestCase {
 
     func testTheFirstDecisionIsNeverBlocked() {
@@ -52,6 +53,7 @@ final class EntitlementTests: XCTestCase {
     }
 }
 
+@MainActor
 final class DecisionPresentationTests: XCTestCase {
 
     private func result(optionNames: [String]) -> DecisionResult {

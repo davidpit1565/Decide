@@ -1,15 +1,18 @@
 import SwiftUI
+import Foundation
 import DecideFlow
 import StoreKit
 
 /// Shown only after DECIDE has already been useful. No countdowns, no invented
 /// scarcity, no "1,000 AI messages" — the product is decision intelligence.
 struct PaywallView: View {
-    enum Context {
+    enum Context: String, Identifiable {
         case deepDecisionLimit
         case history
         case memory
         case profile
+
+        var id: String { rawValue }
 
         var headline: String {
             "Make better decisions, with less effort."
@@ -109,14 +112,30 @@ struct PaywallView: View {
         .accessibilityElement(children: .combine)
     }
 
+    /// Only what Pro actually changes. The analysis itself is the same either way,
+    /// and saying so is worth more than a longer list.
     private var benefits: some View {
         VStack(alignment: .leading, spacing: DecideSpacing.m) {
-            benefit("Deeper research", "More sources checked before a recommendation.")
-            benefit("Advanced analysis", "Fuller comparisons, assumptions and risks.")
-            benefit("Stress testing", "More variations run against every recommendation.")
-            benefit("Decision Memory", "DECIDE remembers what you care about — only what you approve.")
-            benefit("Outcome learning", "Tell DECIDE how it went, and it uses that next time.")
-            benefit("Full history", "Every decision you've made, searchable.")
+            benefit(
+                "Deep decisions, uncapped",
+                "Free covers \(FeatureAccess.freeDeepDecisionsPerMonth) of the research-heavy ones each month. Pro removes the cap."
+            )
+            benefit(
+                "Decision Memory",
+                "DECIDE learns what you actually care about from decisions you've made — and only stores what you approve."
+            )
+            benefit(
+                "Outcome learning",
+                "Tell it how a decision went, and that changes what it learns. A choice you regretted stops counting."
+            )
+            benefit(
+                "Your full history",
+                "Free keeps your last \(FeatureAccess.freeHistoryLimit) decisions in view. Pro shows all of them, searchable."
+            )
+
+            InlineNotice(
+                text: "The analysis is the same either way. Free decisions get the same research, stress testing and self-challenge — Pro removes the limits."
+            )
         }
     }
 

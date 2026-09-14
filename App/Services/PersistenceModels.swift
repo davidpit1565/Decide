@@ -149,18 +149,20 @@ extension StoredMemoryEntry {
     }
 }
 
+// Computed rather than shared instances: JSONDecoder and JSONEncoder are not
+// Sendable, and a stored static would be shared mutable state.
 extension JSONDecoder {
-    static let decide: JSONDecoder = {
+    static var decide: JSONDecoder {
         let decoder = JSONDecoder()
         decoder.dateDecodingStrategy = .iso8601
         return decoder
-    }()
+    }
 }
 
 extension JSONEncoder {
-    static let decide: JSONEncoder = {
+    static var decide: JSONEncoder {
         let encoder = JSONEncoder()
         encoder.dateEncodingStrategy = .iso8601
         return encoder
-    }()
+    }
 }

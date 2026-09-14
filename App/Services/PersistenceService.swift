@@ -33,12 +33,14 @@ final class PersistenceService {
         return container.mainContext
     }
 
-    static let schema = Schema([
-        StoredDecision.self,
-        StoredDecisionResult.self,
-        StoredOutcome.self,
-        StoredMemoryEntry.self
-    ])
+    static var schema: Schema {
+        Schema([
+            StoredDecision.self,
+            StoredDecisionResult.self,
+            StoredOutcome.self,
+            StoredMemoryEntry.self
+        ])
+    }
 
     init(inMemory: Bool = false) throws {
         let configuration = ModelConfiguration(schema: Self.schema, isStoredInMemoryOnly: inMemory)

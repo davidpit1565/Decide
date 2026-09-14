@@ -1,4 +1,5 @@
 import SwiftUI
+import Foundation
 import DecideCore
 
 /// For the user who wants to understand more. Evidence, inputs, assumptions and

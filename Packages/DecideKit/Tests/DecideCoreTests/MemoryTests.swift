@@ -105,3 +105,69 @@ final class MemoryTests: XCTestCase {
         XCTAssertTrue(MemoryEngine.knownKeys(from: [entry]).isEmpty)
     }
 }
+
+/// Outcome learning: what the user says happened changes what DECIDE learns.
+final class OutcomeLearningTests: XCTestCase {
+
+    private func record(outcome: Outcome.Rating?) -> DecisionRecord {
+        let criteria = [
+            Criterion(id: "convenience", name: "Convenience", weight: 0.5),
+            Criterion(id: "price", name: "Price", weight: 0.5)
+        ]
+        let options = [
+            DecisionOption(id: "a", name: "A", scores: ["convenience": 0.9, "price": 0.3]),
+            DecisionOption(id: "b", name: "B", scores: ["convenience": 0.3, "price": 0.9])
+        ]
+        let stability = StabilityEngine.analyse(options: options, criteria: criteria)
+        let result = DecisionResult(
+            understanding: .init(restatement: "x"),
+            category: .purchase,
+            complexity: .simple,
+            criteria: criteria,
+            options: options,
+            ranking: DecisionEngine.evaluate(options: options, criteria: criteria).ranking,
+            recommendedOptionID: "a",
+            headline: "A",
+            reasons: [],
+            tradeOffs: [],
+            strength: stability.strength,
+            stability: stability
+        )
+        return DecisionRecord(
+            title: "t",
+            prompt: "p",
+            result: result,
+            chosenOptionID: "a",
+            chosenAt: Date(),
+            outcome: outcome.map { Outcome(rating: $0) }
+        )
+    }
+
+    func testADecisionTheUserRegrettedTeachesNothing() {
+        let regretted = [record(outcome: .notGreat), record(outcome: .notGreat)]
+        XCTAssertTrue(
+            MemoryEngine.candidates(from: regretted).isEmpty,
+            "DECIDE must not learn to repeat a choice the user said went badly"
+        )
+    }
+
+    func testOneGoodOutcomeIsWorthTwoUnratedDecisions() {
+        // Unrated: one decision is not yet enough evidence.
+        XCTAssertTrue(MemoryEngine.candidates(from: [record(outcome: nil)]).isEmpty)
+        // Confirmed by the user: the same single decision now counts.
+        let confirmed = MemoryEngine.candidates(from: [record(outcome: .great)])
+        XCTAssertEqual(confirmed.first?.key, "convenience>price")
+        XCTAssertEqual(confirmed.first?.evidenceCount, 2)
+    }
+
+    func testAMixedOutcomeStillCountsOnce() {
+        XCTAssertTrue(MemoryEngine.candidates(from: [record(outcome: .mixed)]).isEmpty)
+        XCTAssertFalse(MemoryEngine.candidates(from: [record(outcome: .mixed), record(outcome: .mixed)]).isEmpty)
+    }
+
+    func testRegretCancelsOutAGoodOutcome() {
+        let mixed = [record(outcome: .great), record(outcome: .notGreat)]
+        let candidates = MemoryEngine.candidates(from: mixed)
+        XCTAssertEqual(candidates.first?.evidenceCount, 2, "Only the good one counts, and it counts double")
+    }
+}

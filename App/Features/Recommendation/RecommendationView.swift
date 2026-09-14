@@ -1,4 +1,5 @@
 import SwiftUI
+import Foundation
 import DecideCore
 
 /// The answer first. Everything that explains it lives behind "See analysis".

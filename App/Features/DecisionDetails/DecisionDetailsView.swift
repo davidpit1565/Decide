@@ -1,4 +1,5 @@
 import SwiftUI
+import Foundation
 import DecideCore
 
 /// A decision from history: what was decided, what was chosen, how it went.

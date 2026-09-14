@@ -33,8 +33,8 @@ a trap, and a lifetime plan on a product with a per-decision serving cost is one
 ## Metadata per product
 
 - **Display name:** Monthly / Annual
-- **Description:** "Deeper research, advanced analysis, Decision Memory and your
-  full history."
+- **Description:** "Unlimited deep decisions, Decision Memory, outcome learning
+  and your full history."
 - **Review screenshot:** the paywall, showing both plans and Restore Purchases.
 
 ## Introductory offers

@@ -84,12 +84,13 @@ There's no account to create, and no sign-up before your first decision.
 
 DECIDE PRO
 
-Free includes real decisions with recommendations, decision strength and your
-recent history.
+Every decision gets the same analysis, free or paid: the same research, the same
+stress testing, the same self-challenge. Pro removes the limits.
 
-Pro adds deeper research, more thorough analysis and stress testing, Decision
-Memory that learns what you actually care about from decisions you've made, and
-your full history.
+Free covers three research-heavy decisions a month and keeps your last ten in
+view. Pro makes both unlimited, and adds Decision Memory — which learns what you
+actually care about from decisions you have already made, stores only what you
+approve, and takes account of how those decisions turned out.
 
 Pro is a monthly or annual subscription. Payment is charged to your Apple Account
 at confirmation. It renews automatically unless cancelled at least 24 hours

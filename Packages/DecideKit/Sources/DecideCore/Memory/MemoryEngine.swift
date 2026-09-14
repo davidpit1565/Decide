@@ -44,6 +44,10 @@ public struct MemoryCandidate: Identifiable, Hashable, Sendable {
 ///
 /// A pattern is only proposed once it has been seen more than once, and only if
 /// the wording passes `MemorySafety`.
+///
+/// Outcomes count. A decision the user said went badly is not evidence for the
+/// preference it expressed, and one they said went well counts double — so
+/// telling DECIDE how it went genuinely changes what it learns.
 public enum MemoryEngine {
 
     /// A pattern needs this much evidence before it is worth asking about.
@@ -61,6 +65,10 @@ public enum MemoryEngine {
 
         for record in records {
             guard let chosen = record.chosenOption else { continue }
+            // A choice the user regretted should not teach DECIDE to repeat it.
+            guard record.outcome?.rating != .notGreat else { continue }
+            let weight = record.outcome?.rating == .great ? 2 : 1
+
             let criteria = record.result.criteria
             guard criteria.count > 1 else { continue }
 
@@ -74,7 +82,7 @@ public enum MemoryEngine {
                 for winner in won {
                     for loser in lost {
                         let key = "\(normalise(winner.name))>\(normalise(loser.name))"
-                        favouredOver[key, default: 0] += 1
+                        favouredOver[key, default: 0] += weight
                         names[key] = (winner.name, loser.name)
                     }
                 }

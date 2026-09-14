@@ -1,5 +1,6 @@
 import { createServer } from "node:http";
 import { handle } from "./handler.js";
+import { resolveClientKey } from "./rateLimit.js";
 
 /**
  * Standalone server. Behind TLS termination in production — the app refuses any
@@ -30,8 +31,7 @@ const server = createServer((req, res) => {
       headers[key.toLowerCase()] = Array.isArray(value) ? value[0] : value;
     }
 
-    const forwardedFor = headers["x-forwarded-for"]?.split(",")[0]?.trim();
-    const clientKey = forwardedFor || req.socket.remoteAddress || "unknown";
+    const clientKey = resolveClientKey(headers, req.socket.remoteAddress);
     const path = new URL(req.url ?? "/", "http://localhost").pathname;
 
     handle({

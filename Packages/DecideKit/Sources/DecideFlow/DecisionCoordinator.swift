@@ -40,6 +40,7 @@ public final class DecisionCoordinator {
     private var classification: DecisionClassifier.Classification?
     private var budget: DecisionBudget?
     private var researchAttempted = false
+    private var modelCallsUsed = 0
     private var task: Task<Void, Never>?
 
     private let service: DecisionAnalysisService
@@ -137,6 +138,7 @@ public final class DecisionCoordinator {
         questionsAsked = []
         preliminary = nil
         researchAttempted = false
+        modelCallsUsed = 0
         chosenOptionID = nil
         decisionID = UUID()
         phase = .idle
@@ -160,6 +162,8 @@ public final class DecisionCoordinator {
             budget: budget,
             questionsAlreadyAsked: questionsAsked.count
         )
+
+        modelCallsUsed += 1
 
         do {
             let validated = try await service.analyse(request)
@@ -228,7 +232,9 @@ public final class DecisionCoordinator {
             run()
 
         case .needsOneQuestion:
-            guard let question = plan.next else {
+            // The budget is a hard ceiling, not a suggestion: a decision cannot
+            // keep buying model calls by asking one more thing.
+            guard let question = plan.next, modelCallsUsed < (budget?.maximumModelCalls ?? 1) else {
                 finish(with: response)
                 return
             }

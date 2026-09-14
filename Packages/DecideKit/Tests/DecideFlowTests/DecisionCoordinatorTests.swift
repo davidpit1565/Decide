@@ -340,3 +340,67 @@ final class DecisionCoordinatorTests: XCTestCase {
         XCTAssertNotNil(coordinator.makeChoice(optionID: "one"))
     }
 }
+
+/// Cost control that actually holds, rather than a number in a struct.
+@MainActor
+final class BudgetEnforcementTests: XCTestCase {
+
+    private func settle(_ coordinator: DecisionCoordinator, ignoring previous: DecisionCoordinator.Phase? = nil) async throws {
+        let deadline = Date().addingTimeInterval(5)
+        while Date() < deadline {
+            let phase = coordinator.phase
+            let isSettled: Bool
+            switch phase {
+            case .idle, .working: isSettled = false
+            default: isSettled = true
+            }
+            if isSettled, phase != previous { return }
+            try await Task.sleep(nanoseconds: 2_000_000)
+        }
+        XCTFail("Pipeline did not settle: \(coordinator.phase)")
+    }
+
+    func testABacklogOfQuestionsCannotOutspendTheBudget() async throws {
+        // A backend that keeps asking for one more thing, forever.
+        let steps = (0..<12).map { index -> MockAnalysisService.Step in
+            var response = Responses.askingOneQuestion()
+            response.requiredQuestions = [
+                .init(
+                    id: "q\(index)",
+                    text: "Question \(index)?",
+                    kind: "free_text",
+                    choices: [],
+                    expectedImpact: 0.9,
+                    friction: 0.1,
+                    answerableByResearch: false
+                )
+            ]
+            return .respond(response)
+        }
+        let service = MockAnalysisService(steps: steps)
+        let coordinator = DecisionCoordinator(service: service, memoryProvider: { [] })
+
+        coordinator.start(prompt: "Should I take this job offer in another city?")
+        try await settle(coordinator)
+
+        // Answer whatever it asks, as many times as it will let us.
+        for _ in 0..<12 {
+            guard case .asking(let question) = coordinator.phase else { break }
+            let asking = coordinator.phase
+            coordinator.answer("Yes", to: question)
+            try await settle(coordinator, ignoring: asking)
+        }
+
+        guard case .finished = coordinator.phase else {
+            return XCTFail("The pipeline must land on an answer, not keep asking: \(coordinator.phase)")
+        }
+
+        let budget = ResearchPolicy.budget(complexity: .complex, category: .career)
+        XCTAssertLessThanOrEqual(
+            service.requestCount,
+            budget.maximumModelCalls,
+            "A decision must never buy more model calls than its budget allows"
+        )
+        XCTAssertLessThanOrEqual(coordinator.questionsAsked.count, budget.questionCeiling)
+    }
+}

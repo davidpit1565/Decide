@@ -19,19 +19,17 @@ endpoint forwards the decision text to a third-party AI provider (Anthropic) for
 analysis; disclose that provider in the "third parties" section — Apple requires
 third-party data handling to be declared as if it were the app's own.
 
-### Purchases — "Purchase History"
-
-- **Collected:** Yes
-- **Linked to the user:** No
-- **Used for tracking:** No
-- **Purpose:** App Functionality
-
-Subscription state comes from StoreKit and is used only to decide whether Pro
-features are available.
-
 ## Data NOT collected
 
-Declare none of the following, because the app does not gather them:
+### Purchases — "Purchase History"
+
+**Answer No.** Subscription state is read from StoreKit on the device to decide
+whether Pro is active, and is never transmitted anywhere by this app. Apple's
+definition of collection is data sent off the device, so answering Yes here would
+overstate what DECIDE does. (Apple's own handling of the transaction is Apple's
+to declare, not the developer's.)
+
+Declare none of the following either:
 
 - Contact info, name, email, phone number, physical address
 - Health or fitness data

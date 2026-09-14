@@ -13,20 +13,21 @@ extension DecisionRecord {
     var shouldReview: Bool { needsReview || isPotentiallyStale }
 
     /// Everything worth matching a search against.
+    ///
+    /// Short-circuits rather than building the list first: this runs for every
+    /// stored decision on every keystroke.
     func matches(_ query: String) -> Bool {
-        let needle = query.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        let needle = query.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !needle.isEmpty else { return true }
 
-        let haystack = [
-            title,
-            prompt,
-            result.understanding.restatement,
-            result.category.rawValue.replacingOccurrences(of: "_", with: " ")
-        ]
-        + result.options.map(\.name)
-        + result.criteria.map(\.name)
+        func hit(_ candidate: String) -> Bool {
+            candidate.range(of: needle, options: [.caseInsensitive, .diacriticInsensitive]) != nil
+        }
 
-        return haystack.contains { $0.lowercased().contains(needle) }
+        if hit(title) || hit(prompt) || hit(result.understanding.restatement) { return true }
+        if hit(result.category.rawValue.replacingOccurrences(of: "_", with: " ")) { return true }
+        if result.options.contains(where: { hit($0.name) }) { return true }
+        return result.criteria.contains(where: { hit($0.name) })
     }
 }
 

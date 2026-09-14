@@ -9,6 +9,8 @@
  * Until that is implemented, DECIDE_REQUIRE_ATTESTATION=1 refuses every request
  * rather than pretending the check happened.
  */
+import { timingSafeEqual as nodeTimingSafeEqual } from "node:crypto";
+
 export interface ClientCheck {
   ok: boolean;
   status: number;
@@ -34,10 +36,14 @@ export function verifyClient(headers: Record<string, string | undefined>): Clien
 }
 
 function timingSafeEqual(a: string, b: string): boolean {
-  if (a.length !== b.length) return false;
-  let difference = 0;
-  for (let index = 0; index < a.length; index += 1) {
-    difference |= a.charCodeAt(index) ^ b.charCodeAt(index);
+  const left = Buffer.from(a, "utf8");
+  const right = Buffer.from(b, "utf8");
+  // Compare a fixed-size digest-shaped buffer so the comparison itself does not
+  // depend on the length of what was supplied.
+  if (left.length !== right.length) {
+    // Still burn a comparison of equal length, then fail.
+    nodeTimingSafeEqual(right, right);
+    return false;
   }
-  return difference === 0;
+  return nodeTimingSafeEqual(left, right);
 }

@@ -1,7 +1,7 @@
 import { strict as assert } from "node:assert";
 import test from "node:test";
 import { handle } from "../handler.js";
-import { resetRateLimits } from "../rateLimit.js";
+import { resetRateLimits, resolveClientKey } from "../rateLimit.js";
 import { AnalysisRequestSchema, SCHEMA_VERSION } from "../schema.js";
 
 function validBody(overrides: Record<string, unknown> = {}) {
@@ -124,4 +124,21 @@ test("the request contract accepts what the app actually sends", () => {
 test("an old schema version is refused rather than misread", () => {
   const parsed = AnalysisRequestSchema.safeParse(JSON.parse(validBody({ schemaVersion: 0 })));
   assert.equal(parsed.success, false);
+});
+
+test("a forged forwarded-for header cannot buy a fresh rate-limit budget", () => {
+  const headers = { "x-forwarded-for": "1.2.3.4" };
+
+  // Exposed directly: the socket address is what counts, so rotating the header
+  // changes nothing.
+  assert.equal(resolveClientKey(headers, "10.0.0.1", false), "10.0.0.1");
+  assert.equal(resolveClientKey({ "x-forwarded-for": "9.9.9.9" }, "10.0.0.1", false), "10.0.0.1");
+
+  // Behind a proxy that sets it, the real client is what counts.
+  assert.equal(resolveClientKey(headers, "10.0.0.1", true), "1.2.3.4");
+  assert.equal(resolveClientKey({ "x-forwarded-for": "1.2.3.4, 10.0.0.9" }, "10.0.0.1", true), "1.2.3.4");
+});
+
+test("a request with no identifiable client still gets a key", () => {
+  assert.equal(resolveClientKey({}, undefined, true), "unknown");
 });

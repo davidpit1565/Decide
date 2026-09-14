@@ -47,3 +47,23 @@ function pruneExpired(now: number): void {
 export function resetRateLimits(): void {
   windows.clear();
 }
+
+/**
+ * Who this request counts against.
+ *
+ * `x-forwarded-for` is set by the client unless a proxy overwrites it, so
+ * trusting it by default would hand anyone a way around the limiter: rotate the
+ * header, get a fresh budget. It is honoured only when the deployment declares
+ * that it sits behind a proxy which sets it.
+ */
+export function resolveClientKey(
+  headers: Record<string, string | undefined>,
+  remoteAddress: string | undefined,
+  trustsProxy: boolean = process.env.DECIDE_TRUST_PROXY === "1"
+): string {
+  if (trustsProxy) {
+    const forwarded = headers["x-forwarded-for"]?.split(",")[0]?.trim();
+    if (forwarded) return forwarded;
+  }
+  return remoteAddress || "unknown";
+}

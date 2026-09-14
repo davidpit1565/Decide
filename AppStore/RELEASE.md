@@ -17,15 +17,16 @@ domain that only the account owner can provide.
 3. **Backend deployment**
    Deploy `Backend/` somewhere with TLS and set `ANTHROPIC_API_KEY` in its
    environment. Then set `DECIDE_API_HOST` in `Config/Shared.xcconfig` to its
-   hostname. The app ignores any URL that is not HTTPS, so a mistake here shows up
-   as "DECIDE isn't connected yet" rather than as an insecure request.
+   hostname — it ships empty. Until it is set, and for any value that is not
+   HTTPS, the app says "DECIDE isn't connected yet" rather than failing against a
+   host that does not exist.
 
 4. **Privacy policy, terms and support pages**
-   Publish all three, then set `DECIDE_PRIVACY_POLICY_URL`, `DECIDE_TERMS_URL`
-   and `DECIDE_SUPPORT_URL` in `Config/Shared.xcconfig`. `AppStore/privacy.md`
-   lists what the policy has to cover. Until they are set the app hides those
-   links rather than showing dead ones — but App Store Connect will not accept a
-   submission without a privacy policy URL.
+   Publish all three, then set `DECIDE_PRIVACY_POLICY_HOST`, `DECIDE_TERMS_HOST`
+   and `DECIDE_SUPPORT_HOST` in `Config/Shared.xcconfig`. `AppStore/privacy.md`
+   lists what the policy has to cover. They ship empty, and the app hides a link
+   it has no URL for rather than showing a dead one — but App Store Connect will
+   not accept a submission without a privacy policy URL.
 
 5. **Subscription products**
    Create the two products from `AppStore/subscriptions.md` with exactly those

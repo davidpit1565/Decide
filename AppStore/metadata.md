@@ -136,6 +136,6 @@ between users and no moderation surface.
 
 ## Support and marketing URLs
 
-Placeholders live in `Config/Shared.xcconfig`. They point at `.invalid` hostnames
-on purpose — the app treats a missing or non-HTTPS URL as absent rather than
-showing a broken link, so nothing ships pointing at a page that does not exist.
+Set in `Config/Shared.xcconfig`, and empty until you publish the pages. The app
+treats a missing or non-HTTPS URL as absent and hides the link, so nothing ships
+pointing at a page that does not exist.

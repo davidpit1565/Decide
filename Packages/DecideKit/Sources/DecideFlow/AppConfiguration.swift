@@ -30,10 +30,14 @@ public struct AppConfiguration: Sendable {
 
     public init(info: InfoValueProviding) {
         func url(_ key: String) -> URL? {
-            guard let value = info.infoValue(forKey: key),
-                  !value.trimmingCharacters(in: .whitespaces).isEmpty,
-                  let url = URL(string: value.trimmingCharacters(in: .whitespaces)),
-                  url.scheme?.lowercased() == "https"
+            // "https://" with nothing after it parses as a URL and reports an
+            // empty host, so a host has to be required explicitly — otherwise an
+            // unconfigured build looks configured.
+            guard let value = info.infoValue(forKey: key)?.trimmingCharacters(in: .whitespaces),
+                  !value.isEmpty,
+                  let url = URL(string: value),
+                  url.scheme?.lowercased() == "https",
+                  let host = url.host(), !host.isEmpty
             else { return nil }
             return url
         }

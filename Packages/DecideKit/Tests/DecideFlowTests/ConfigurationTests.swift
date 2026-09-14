@@ -76,6 +76,21 @@ final class ConfigurationTests: XCTestCase {
         XCTAssertFalse(configuration.isBackendConfigured)
     }
 
+    func testTheSchemeWithoutAHostIsNotAUrl() {
+        // Exactly what an unconfigured build produces: the xcconfig assembles
+        // "https://" + an empty host. It must read as "not connected", not as a
+        // reachable endpoint.
+        let configuration = AppConfiguration(
+            info: StubInfo(values: [
+                "DecideAPIBaseURL": "https://",
+                "DecidePrivacyPolicyURL": "https://",
+            ])
+        )
+        XCTAssertFalse(configuration.isBackendConfigured)
+        XCTAssertNil(configuration.apiBaseURL)
+        XCTAssertNil(configuration.privacyPolicyURL)
+    }
+
 }
 
 final class ReachabilityTests: XCTestCase {

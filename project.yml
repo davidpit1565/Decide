@@ -40,10 +40,11 @@ targets:
     configFiles:
       Debug: Config/Debug.xcconfig
       Release: Config/Release.xcconfig
-    info:
-      path: Config/Info.plist
     settings:
       base:
+        # INFOPLIST_FILE comes from Shared.xcconfig. Deliberately not using
+        # XcodeGen's `info:` block, which would generate a plist over the top of
+        # the real one.
         GENERATE_INFOPLIST_FILE: NO
 
   DecideTests:

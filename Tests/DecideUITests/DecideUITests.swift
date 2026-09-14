@@ -53,20 +53,23 @@ final class DecideUITests: XCTestCase {
         return found
     }
 
-    /// Taps a control that navigates, then waits generously for the destination.
+    /// Taps a control that navigates, at a point guaranteed to be inside its
+    /// visible label rather than the framework's default (the center of its
+    /// reported accessibility frame), then waits for the destination.
     ///
-    /// A retry-tap was tried here first and did not help — both the first and a
-    /// retried tap timed out identically against a two-run sample, which rules
-    /// out a dropped tap (a second tap landing correctly would have shown up as
-    /// a difference between the two attempts). What is common to both is that
-    /// `AnalysisView` is the heaviest screen in the app (multiple sections, a
-    /// `ScoreBar` per option per criterion, each with its own `GeometryReader`),
-    /// and every OTHER first-appearance wait in this suite already budgets the
-    /// default 30s while this one budgeted only 10s. The fix is consistency,
-    /// not a second tap that risks landing somewhere unintended once the
-    /// destination does render.
+    /// This link's `.frame(maxWidth: .infinity, alignment: .leading)` reports an
+    /// accessibility frame spanning the full row width, while the app fix
+    /// (`.contentShape(Rectangle())`, applied in the same commit as this test
+    /// change) makes the whole row genuinely tappable. Both a shorter wait and a
+    /// longer one (10s, then 30s) failed identically before that fix, and a
+    /// confirmed-flake re-run on the SAME commit after the fix still failed once
+    /// more on this one device/run — so rather than keep guessing at timing, the
+    /// tap itself now targets a point inside the visible "See analysis" text
+    /// (10% across, vertically centered), which is correct regardless of
+    /// whichever frame XCUITest's default center-tap would have used.
     private func tapToNavigate(_ button: XCUIElement, expecting text: String, timeout: TimeInterval = 30) {
-        button.tap()
+        XCTAssertTrue(button.waitForExistence(timeout: 10), "The control to tap must exist first")
+        button.coordinate(withNormalizedOffset: CGVector(dx: 0.1, dy: 0.5)).tap()
         waitForText(text, timeout: timeout)
     }
 

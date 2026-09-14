@@ -1,5 +1,6 @@
 import SwiftUI
 import DecideCore
+import DecideFlow
 
 /// What DECIDE knows, and how to make it forget. No account, no profile to fill in.
 struct ProfileView: View {
@@ -51,13 +52,18 @@ struct ProfileView: View {
             .sheet(isPresented: $showingPaywall) {
                 PaywallView(context: .profile)
             }
-            .alert(item: $confirmation) { item in
-                Alert(
-                    title: Text(item.title),
-                    message: Text(item.message),
-                    primaryButton: .destructive(Text("Delete")) { perform(item) },
-                    secondaryButton: .cancel(Text("Keep"))
-                )
+            .alert(
+                confirmation?.title ?? "",
+                isPresented: Binding(
+                    get: { confirmation != nil },
+                    set: { if !$0 { confirmation = nil } }
+                ),
+                presenting: confirmation
+            ) { item in
+                Button("Delete", role: .destructive) { perform(item) }
+                Button("Keep", role: .cancel) {}
+            } message: { item in
+                Text(item.message)
             }
         }
     }

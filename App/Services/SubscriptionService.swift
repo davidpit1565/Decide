@@ -57,14 +57,13 @@ final class SubscriptionService {
     /// The single question the rest of the app asks.
     var isPro: Bool { entitlement.grantsPro }
 
+    /// Held for the lifetime of the app: StoreKit can deliver a transaction at any
+    /// time — a renewal, a purchase made on another device, a refund — and missing
+    /// one would leave the entitlement stale.
     private var updatesTask: Task<Void, Never>?
 
     init() {
         updatesTask = listenForTransactions()
-    }
-
-    deinit {
-        updatesTask?.cancel()
     }
 
     var monthly: Product? { products.first { $0.id == ProductID.monthly } }

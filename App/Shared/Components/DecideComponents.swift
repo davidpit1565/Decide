@@ -268,16 +268,4 @@ extension View {
     func screenPadding() -> some View {
         padding(.horizontal, DecideSpacing.screenMargin)
     }
-
-    /// Keeps the keyboard from covering whatever the user is typing into.
-    func dismissKeyboardOnTap() -> some View {
-        onTapGesture {
-            UIApplication.shared.sendAction(
-                #selector(UIResponder.resignFirstResponder),
-                to: nil,
-                from: nil,
-                for: nil
-            )
-        }
-    }
 }

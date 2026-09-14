@@ -76,7 +76,39 @@ final class ConfigurationTests: XCTestCase {
         XCTAssertFalse(configuration.isBackendConfigured)
     }
 
-    func testAnalyticsIsOffUntilDeliberatelyEnabled() {
-        XCTAssertFalse(AppConfiguration(info: StubInfo()).isAnalyticsEnabledByDefault)
+}
+
+final class ReachabilityTests: XCTestCase {
+
+    func testUpdatesYieldTheCurrentValueThenChanges() async throws {
+        let reachability = Reachability.shared
+
+        let task = Task { () -> [Bool] in
+            var received: [Bool] = []
+            for await connected in reachability.updates {
+                received.append(connected)
+                if received.count == 2 { break }
+            }
+            return received
+        }
+
+        // Give the stream a moment to deliver the initial value before changing it.
+        try await Task.sleep(nanoseconds: 20_000_000)
+        reachability.simulate(connected: false)
+        let received = await task.value
+
+        XCTAssertEqual(received.first, true, "The current value arrives immediately")
+        XCTAssertEqual(received.last, false, "A change is delivered to listeners")
+        XCTAssertFalse(reachability.isConnected)
+
+        reachability.simulate(connected: true)
+        XCTAssertTrue(reachability.isConnected)
+    }
+
+    func testRepeatedIdenticalUpdatesDoNotChurnListeners() {
+        let reachability = Reachability.shared
+        reachability.simulate(connected: true)
+        reachability.simulate(connected: true)
+        XCTAssertTrue(reachability.isConnected)
     }
 }

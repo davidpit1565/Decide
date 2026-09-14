@@ -11,7 +11,6 @@ struct RootView: View {
 
     var startupError: String?
 
-    @Environment(AppEnvironment.self) private var environment
     @State private var selection: Tab = .decide
     @State private var showingStartupError = false
 

@@ -10,6 +10,7 @@ struct HomeView: View {
     @State private var prompt = ""
     @State private var activeDecision: ActiveDecision?
     @State private var showingPaywall = false
+    @State private var isConnected = true
     @FocusState private var isInputFocused: Bool
 
     private var trimmedPrompt: String {
@@ -45,6 +46,13 @@ struct HomeView: View {
                 .screenPadding()
                 .padding(.vertical, DecideSpacing.s)
                 .background(.bar)
+            }
+        }
+        .task {
+            // Reflects the connection as it changes, rather than whatever was true
+            // when the screen was first drawn.
+            for await connected in Reachability.shared.updates {
+                isConnected = connected
             }
         }
         .fullScreenCover(item: $activeDecision) { active in
@@ -90,7 +98,7 @@ struct HomeView: View {
             )
             .accessibilityLabel("What are you deciding?")
 
-            if !Reachability.shared.isConnected {
+            if !isConnected {
                 InlineNotice(
                     text: "You're offline. A new decision needs a connection — your saved decisions are still here.",
                     kind: .warning

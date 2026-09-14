@@ -21,7 +21,6 @@ public struct AppConfiguration: Sendable {
     public let privacyPolicyURL: URL?
     public let termsURL: URL?
     public let supportURL: URL?
-    public let isAnalyticsEnabledByDefault: Bool
 
     public static let shared = AppConfiguration(bundle: .main)
 
@@ -43,7 +42,6 @@ public struct AppConfiguration: Sendable {
         privacyPolicyURL = url("DecidePrivacyPolicyURL")
         termsURL = url("DecideTermsURL")
         supportURL = url("DecideSupportURL")
-        isAnalyticsEnabledByDefault = false
     }
 
     /// True when the app has somewhere to send analysis requests.

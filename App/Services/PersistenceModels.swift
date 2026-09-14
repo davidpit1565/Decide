@@ -5,8 +5,6 @@ import DecideCore
 /// Decision data: what the user told DECIDE about one specific decision.
 @Model
 final class StoredDecision {
-    #Index<StoredDecision>([\.createdAt])
-
     @Attribute(.unique) var id: UUID
     var title: String
     var prompt: String

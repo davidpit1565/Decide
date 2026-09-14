@@ -9,7 +9,6 @@ struct DecisionDetailsView: View {
     @Environment(\.dismiss) private var dismiss
     @State private var showingOutcome = false
     @State private var showingDeleteConfirmation = false
-    @State private var showingUpdatePrompt = false
     @State private var newDecision: ActiveDecision?
 
     private var current: DecisionRecord {
@@ -20,7 +19,7 @@ struct DecisionDetailsView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: DecideSpacing.l) {
                 summary
-                if current.shouldReview { changedNotice }
+                whatYouToldMe
                 outcomeSection
 
                 NavigationLink {
@@ -100,20 +99,44 @@ struct DecisionDetailsView: View {
         }
     }
 
-    private var changedNotice: some View {
+    /// What DECIDE understood, and the two ways to put it right. An old decision is
+    /// never rewritten in place — both routes create a new one and leave this intact.
+    private var whatYouToldMe: some View {
         DecideCard {
             VStack(alignment: .leading, spacing: DecideSpacing.s) {
-                Text("Things have changed")
-                    .font(DecideFont.headline)
+                Text("What you told me")
+                    .font(DecideFont.footnote.weight(.medium))
+                    .foregroundStyle(DecideColor.tertiaryText)
+
+                Text(current.result.understanding.restatement)
+                    .font(DecideFont.callout)
                     .foregroundStyle(DecideColor.primaryText)
-                Text("Enough time has passed that the information behind this could be out of date.")
-                    .font(DecideFont.footnote)
-                    .foregroundStyle(DecideColor.secondaryText)
                     .fixedSize(horizontal: false, vertical: true)
-                // The old decision is never rewritten in place: a new one is a new record.
-                SecondaryButton(title: "Start a new decision") {
+
+                if !current.result.understanding.whatMatters.isEmpty {
+                    Text(current.result.understanding.whatMatters.joined(separator: " · "))
+                        .font(DecideFont.footnote)
+                        .foregroundStyle(DecideColor.secondaryText)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+
+                Divider().overlay(DecideColor.separator)
+
+                Text(
+                    current.shouldReview
+                        ? "Enough time has passed that the information behind this could be out of date."
+                        : "Not quite right, or something has changed?"
+                )
+                .font(DecideFont.footnote)
+                .foregroundStyle(current.shouldReview ? DecideColor.moderate : DecideColor.secondaryText)
+                .fixedSize(horizontal: false, vertical: true)
+
+                SecondaryButton(title: "Update this decision") {
                     newDecision = ActiveDecision(prompt: current.prompt)
                 }
+                Button("Start a different decision") { dismiss() }
+                    .font(DecideFont.footnote)
+                    .frame(maxWidth: .infinity, minHeight: DecideSpacing.minimumTouchTarget)
             }
         }
     }

@@ -37,8 +37,12 @@ extension AnalyticsService {
     public func track(_ event: AnalyticsEvent) { track(event, properties: [:]) }
 }
 
-/// The shipping default. Nothing leaves the device until an analytics provider is
-/// deliberately wired in and disclosed in App Privacy.
+/// The shipping default: nothing leaves the device.
+///
+/// Wiring in a real provider means changing three things together — this type,
+/// the App Privacy answers in AppStore/privacy.md, and the privacy manifest in
+/// App/Resources/PrivacyInfo.xcprivacy. Changing only the first would make the
+/// app's declared data practices false.
 public struct NoOpAnalyticsService: AnalyticsService {
     public init() {}
 

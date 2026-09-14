@@ -53,17 +53,19 @@ final class DecideUITests: XCTestCase {
         return found
     }
 
-    /// Taps a control that navigates, and retries once if the destination does
-    /// not appear promptly.
+    /// Taps a control that navigates, then waits generously for the destination.
     ///
-    /// A tap synthesized immediately after a screen transition can occasionally
-    /// land before SwiftUI has finished registering the new view's hit-testing —
-    /// a known timing gap between XCUITest's "idle" heuristic and a `NavigationStack`
-    /// push completing. One retry closes that gap without weakening what is
-    /// actually verified: the destination content below is still checked in full.
-    private func tapToNavigate(_ button: XCUIElement, expecting text: String, timeout: TimeInterval = 10) {
-        button.tap()
-        if element(containing: text).waitForExistence(timeout: 3) { return }
+    /// A retry-tap was tried here first and did not help — both the first and a
+    /// retried tap timed out identically against a two-run sample, which rules
+    /// out a dropped tap (a second tap landing correctly would have shown up as
+    /// a difference between the two attempts). What is common to both is that
+    /// `AnalysisView` is the heaviest screen in the app (multiple sections, a
+    /// `ScoreBar` per option per criterion, each with its own `GeometryReader`),
+    /// and every OTHER first-appearance wait in this suite already budgets the
+    /// default 30s while this one budgeted only 10s. The fix is consistency,
+    /// not a second tap that risks landing somewhere unintended once the
+    /// destination does render.
+    private func tapToNavigate(_ button: XCUIElement, expecting text: String, timeout: TimeInterval = 30) {
         button.tap()
         waitForText(text, timeout: timeout)
     }

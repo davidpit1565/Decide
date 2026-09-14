@@ -1,0 +1,43 @@
+/**
+ * Who is allowed to call this endpoint.
+ *
+ * A token compiled into the app is not a secret — it can be pulled out of the
+ * binary — so it is offered only as a coarse filter. The real answer is Apple's
+ * App Attest: the app produces a per-request assertion, and this function
+ * verifies it against the stored public key.
+ *
+ * Until that is implemented, DECIDE_REQUIRE_ATTESTATION=1 refuses every request
+ * rather than pretending the check happened.
+ */
+export interface ClientCheck {
+  ok: boolean;
+  status: number;
+  reason?: string;
+}
+
+export function verifyClient(headers: Record<string, string | undefined>): ClientCheck {
+  const requiredToken = process.env.DECIDE_CLIENT_TOKEN;
+  if (requiredToken) {
+    const provided = (headers["authorization"] ?? "").replace(/^Bearer\s+/i, "");
+    if (!timingSafeEqual(provided, requiredToken)) {
+      return { ok: false, status: 401, reason: "unauthorized" };
+    }
+  }
+
+  if (process.env.DECIDE_REQUIRE_ATTESTATION === "1") {
+    // TODO(production): verify headers["x-decide-attestation"] with Apple's
+    // App Attest, against the key registered for this installation.
+    return { ok: false, status: 501, reason: "attestation_not_implemented" };
+  }
+
+  return { ok: true, status: 200 };
+}
+
+function timingSafeEqual(a: string, b: string): boolean {
+  if (a.length !== b.length) return false;
+  let difference = 0;
+  for (let index = 0; index < a.length; index += 1) {
+    difference |= a.charCodeAt(index) ^ b.charCodeAt(index);
+  }
+  return difference === 0;
+}

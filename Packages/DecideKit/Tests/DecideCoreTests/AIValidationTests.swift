@@ -200,3 +200,51 @@ final class AIValidationTests: XCTestCase {
         XCTAssertEqual(original, decoded)
     }
 }
+
+/// The backend and the app have to agree byte for byte. This fixture is written
+/// by the backend's own contract test (`Backend/src/test/contract.test.ts`), so a
+/// change on either side that breaks the other fails here.
+final class BackendContractTests: XCTestCase {
+
+    func testABackendResponseDecodesAndValidates() throws {
+        let validated = try Fixture.validated("backend_contract")
+        XCTAssertEqual(validated.status, .ready)
+        XCTAssertEqual(validated.category, .technology)
+        XCTAssertEqual(validated.options.count, 2)
+        XCTAssertEqual(validated.criteria.count, 3)
+        XCTAssertEqual(validated.recommendedOptionID, "air")
+        XCTAssertEqual(validated.reasons.count, 2)
+        XCTAssertEqual(validated.preliminaryOptionID, "air")
+        XCTAssertTrue(
+            validated.repairedIssues.isEmpty,
+            "A response from our own backend should need no repair: \(validated.repairedIssues)"
+        )
+    }
+
+    func testTheBackendResponseProducesAUsableResult() throws {
+        let result = DecisionAssembler.assemble(try Fixture.validated("backend_contract"))
+        XCTAssertEqual(result.recommendedOptionID, "air")
+        XCTAssertFalse(result.reasons.isEmpty)
+        XCTAssertFalse(result.tradeOffs.isEmpty)
+        XCTAssertNotNil(result.challenge)
+        XCTAssertGreaterThan(
+            DecisionAssembler.evidenceCoverage(try Fixture.validated("backend_contract")),
+            ReadinessEngine.minimumEvidenceCoverage
+        )
+    }
+
+    func testTheBackendNeverSendsAConfidenceNumber() throws {
+        let validated = try Fixture.validated("backend_contract")
+        let userFacingText = (
+            [validated.understanding.restatement, validated.headline]
+            + validated.reasons.map(\.title)
+            + validated.reasons.map(\.detail)
+            + validated.counterpoints
+        ).joined(separator: " ")
+
+        XCTAssertNil(
+            userFacingText.range(of: #"\d{1,3}\s*%\s*(confident|sure|certain)"#, options: .regularExpression),
+            "Decision strength is computed on device; a model-reported confidence must never reach the UI"
+        )
+    }
+}

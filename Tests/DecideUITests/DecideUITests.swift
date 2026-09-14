@@ -58,13 +58,18 @@ final class DecideUITests: XCTestCase {
     ///
     /// Four fix attempts targeting the interaction itself — a shorter wait, a
     /// retry-tap, a longer wait, and a tap at a fixed coordinate inside the
-    /// visible text rather than the frame's center — have all failed identically
-    /// on one CI device/run, which rules out where or how the tap lands as the
-    /// remaining variable. What is still unknown is *which side* of the
-    /// navigation is failing: whether the push never starts (the nav bar title
-    /// never changes) or it starts but `AnalysisView`'s content never appears.
-    /// Checking the nav bar first, on its own short budget, answers that
-    /// directly instead of adding a sixth blind guess at the interaction.
+    /// visible text rather than the frame's center — all failed identically on
+    /// every CI device, and a nav-bar-first diagnostic then proved the push
+    /// itself never starts (the tap never reaches the NavigationLink at all).
+    /// That is consistent with the control existing in the accessibility tree
+    /// (so `waitForExistence` passes) while sitting below the fold in a
+    /// `ScrollView` that never auto-scrolls it into view — a coordinate tap
+    /// bypasses XCUITest's own scroll-into-view behavior entirely, which is
+    /// exactly the failure mode observed. This scrolls until the control is
+    /// genuinely `isHittable` before using a real `tap()`, and — since four
+    /// blind interaction guesses is enough — reports the control's frame
+    /// against the window and the full accessibility hierarchy if it still
+    /// isn't, rather than guessing a sixth time.
     private func tapToNavigate(
         _ button: XCUIElement,
         expectingNavigationBar navigationBarTitle: String,
@@ -72,12 +77,29 @@ final class DecideUITests: XCTestCase {
         timeout: TimeInterval = 30
     ) {
         XCTAssertTrue(button.waitForExistence(timeout: 10), "The control to tap must exist first")
-        button.coordinate(withNormalizedOffset: CGVector(dx: 0.1, dy: 0.5)).tap()
+
+        var scrollAttempts = 0
+        while !button.isHittable && scrollAttempts < 10 {
+            app.swipeUp()
+            scrollAttempts += 1
+        }
+
+        guard button.isHittable else {
+            return XCTFail(
+                "\"\(button.label)\" exists but was never hittable, even after scrolling. "
+                + "Button frame: \(button.frame), window frame: \(app.windows.firstMatch.frame). "
+                + "Hierarchy:\n\(app.debugDescription)"
+            )
+        }
+
+        button.tap()
 
         guard app.navigationBars[navigationBarTitle].waitForExistence(timeout: 8) else {
             return XCTFail(
                 "The push to \"\(navigationBarTitle)\" never started: the nav bar title never changed, "
-                + "so the tap did not reach the NavigationLink at all."
+                + "so the tap did not reach the NavigationLink at all. "
+                + "Button frame: \(button.frame), window frame: \(app.windows.firstMatch.frame). "
+                + "Hierarchy:\n\(app.debugDescription)"
             )
         }
         XCTAssertTrue(

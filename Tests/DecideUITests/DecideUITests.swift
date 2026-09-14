@@ -53,24 +53,37 @@ final class DecideUITests: XCTestCase {
         return found
     }
 
-    /// Taps a control that navigates, at a point guaranteed to be inside its
-    /// visible label rather than the framework's default (the center of its
-    /// reported accessibility frame), then waits for the destination.
+    /// Taps a control that pushes a new screen, and reports precisely which of
+    /// two things failed if the destination never shows up.
     ///
-    /// This link's `.frame(maxWidth: .infinity, alignment: .leading)` reports an
-    /// accessibility frame spanning the full row width, while the app fix
-    /// (`.contentShape(Rectangle())`, applied in the same commit as this test
-    /// change) makes the whole row genuinely tappable. Both a shorter wait and a
-    /// longer one (10s, then 30s) failed identically before that fix, and a
-    /// confirmed-flake re-run on the SAME commit after the fix still failed once
-    /// more on this one device/run — so rather than keep guessing at timing, the
-    /// tap itself now targets a point inside the visible "See analysis" text
-    /// (10% across, vertically centered), which is correct regardless of
-    /// whichever frame XCUITest's default center-tap would have used.
-    private func tapToNavigate(_ button: XCUIElement, expecting text: String, timeout: TimeInterval = 30) {
+    /// Four fix attempts targeting the interaction itself — a shorter wait, a
+    /// retry-tap, a longer wait, and a tap at a fixed coordinate inside the
+    /// visible text rather than the frame's center — have all failed identically
+    /// on one CI device/run, which rules out where or how the tap lands as the
+    /// remaining variable. What is still unknown is *which side* of the
+    /// navigation is failing: whether the push never starts (the nav bar title
+    /// never changes) or it starts but `AnalysisView`'s content never appears.
+    /// Checking the nav bar first, on its own short budget, answers that
+    /// directly instead of adding a sixth blind guess at the interaction.
+    private func tapToNavigate(
+        _ button: XCUIElement,
+        expectingNavigationBar navigationBarTitle: String,
+        expecting text: String,
+        timeout: TimeInterval = 30
+    ) {
         XCTAssertTrue(button.waitForExistence(timeout: 10), "The control to tap must exist first")
         button.coordinate(withNormalizedOffset: CGVector(dx: 0.1, dy: 0.5)).tap()
-        waitForText(text, timeout: timeout)
+
+        guard app.navigationBars[navigationBarTitle].waitForExistence(timeout: 8) else {
+            return XCTFail(
+                "The push to \"\(navigationBarTitle)\" never started: the nav bar title never changed, "
+                + "so the tap did not reach the NavigationLink at all."
+            )
+        }
+        XCTAssertTrue(
+            waitForText(text, timeout: timeout),
+            "The push to \"\(navigationBarTitle)\" started (the nav bar title changed) but its content never rendered."
+        )
     }
 
     private var historyRows: XCUIElementQuery {
@@ -199,7 +212,7 @@ final class DecideUITests: XCTestCase {
         startDecision()
         waitForText("My recommendation: MacBook Air")
 
-        tapToNavigate(app.buttons["See analysis"], expecting: "What you told me")
+        tapToNavigate(app.buttons["See analysis"], expectingNavigationBar: "Analysis", expecting: "What you told me")
         XCTAssertTrue(hasText("What I judged it on"))
         XCTAssertTrue(hasText("How the options compare"))
         XCTAssertTrue(hasText("What I checked"))

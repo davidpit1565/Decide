@@ -32,16 +32,24 @@ domain that only the account owner can provide.
    Create the two products from `AppStore/subscriptions.md` with exactly those
    identifiers, in one group, and set prices per territory.
 
-6. **App Store listing**
+6. **Keep the listing's numbers honest**
+   `FeatureAccess.freeDeepDecisionsPerMonth` and `FeatureAccess.freeHistoryLimit`
+   in `App/App/AppEnvironment.swift` are the single source of truth, and every
+   in-app string interpolates them. The App Store description in
+   `AppStore/metadata.md` spells them out in words ("three… ten"), so if you
+   change either constant, change that sentence too — a listing that overstates
+   the free tier is a rejection risk as well as untrue.
+
+7. **App Store listing**
    `AppStore/metadata.md` has the name, subtitle, description, keywords and
    category. `AppStore/screenshots.md` has the seven shots and what must be in
    each. `AppStore/review-notes.md` is the reviewer note.
 
-7. **App Privacy answers**
+8. **App Privacy answers**
    `AppStore/privacy.md` has the exact answers, including the third-party AI
    provider declaration.
 
-8. **App Attest (recommended before any real traffic)**
+9. **App Attest (recommended before any real traffic)**
    The endpoint is currently protected by rate limiting alone. `Backend/src/attest.ts`
    is the hook; until it is implemented, anyone who finds the URL can spend your
    model budget. See the "Known gap" section in `Backend/README.md`.

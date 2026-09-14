@@ -21,9 +21,47 @@ final class DecideUITests: XCTestCase {
         static let continueAfterQuestion = "decide.question.continue"
         static let doneWithDecision = "decide.done"
         static let tryAgain = "decide.retry"
+        static let historyRow = "decide.historyRow"
+        static func optionRow(_ id: String) -> String { "decide.option.\(id)" }
     }
 
     private var app: XCUIApplication!
+
+    /// Finds an element whose accessibility label *contains* this text.
+    ///
+    /// Screens combine related views into one accessibility element — the
+    /// recommendation header reads as one sentence to VoiceOver — so matching on
+    /// an exact label would fail even when the words are plainly on screen.
+    private func element(containing text: String) -> XCUIElement {
+        app.descendants(matching: .any)
+            .matching(NSPredicate(format: "label CONTAINS[c] %@", text))
+            .firstMatch
+    }
+
+    private func hasText(_ text: String) -> Bool {
+        element(containing: text).exists
+    }
+
+    @discardableResult
+    private func waitForText(
+        _ text: String,
+        timeout: TimeInterval = 30,
+        _ message: String? = nil
+    ) -> Bool {
+        let found = element(containing: text).waitForExistence(timeout: timeout)
+        XCTAssertTrue(found, message ?? "Expected “\(text)” on screen")
+        return found
+    }
+
+    private var historyRows: XCUIElementQuery {
+        app.descendants(matching: .any).matching(identifier: ID.historyRow)
+    }
+
+    /// A vertical-axis TextField can surface as a text view rather than a text
+    /// field, so it is addressed by identifier across either type.
+    private var decisionInput: XCUIElement {
+        app.descendants(matching: .any).matching(identifier: ID.decisionInput).firstMatch
+    }
 
     override func setUp() async throws {
         continueAfterFailure = false
@@ -59,7 +97,7 @@ final class DecideUITests: XCTestCase {
     }
 
     private func startDecision(_ text: String = "MacBook Air or MacBook Pro?") {
-        let input = app.textFields[ID.decisionInput]
+        let input = decisionInput
         XCTAssertTrue(input.waitForExistence(timeout: 20), "The decision input should be the first thing on screen")
         input.tap()
         input.typeText(text)
@@ -73,7 +111,7 @@ final class DecideUITests: XCTestCase {
 
     func testHomeAsksTheOneQuestionThatMatters() {
         launch()
-        XCTAssertTrue(app.staticTexts["What are you deciding?"].waitForExistence(timeout: 20))
+        waitForText("What are you deciding?", timeout: 20)
         XCTAssertTrue(app.buttons[ID.startDecision].exists)
     }
 
@@ -83,7 +121,8 @@ final class DecideUITests: XCTestCase {
         XCTAssertTrue(decide.waitForExistence(timeout: 20))
         XCTAssertFalse(decide.isEnabled)
 
-        let input = app.textFields[ID.decisionInput]
+        let input = decisionInput
+        XCTAssertTrue(input.waitForExistence(timeout: 20))
         input.tap()
         input.typeText("Which laptop?")
         XCTAssertTrue(decide.isEnabled)
@@ -94,7 +133,7 @@ final class DecideUITests: XCTestCase {
         let example = app.buttons["Which laptop should I buy?"]
         XCTAssertTrue(example.waitForExistence(timeout: 20))
         example.tap()
-        XCTAssertEqual(app.textFields[ID.decisionInput].value as? String, "Which laptop should I buy?")
+        XCTAssertEqual(decisionInput.value as? String, "Which laptop should I buy?")
     }
 
     func testThereAreExactlyThreePlaces() {
@@ -112,41 +151,40 @@ final class DecideUITests: XCTestCase {
         startDecision()
 
         // Answer first: the recommendation, why, the trade-off, the strength.
-        XCTAssertTrue(app.staticTexts["MY RECOMMENDATION"].waitForExistence(timeout: 30))
-        XCTAssertTrue(app.staticTexts["MacBook Air"].exists)
-        XCTAssertTrue(app.staticTexts["Why it fits you"].exists)
-        XCTAssertTrue(app.staticTexts["Decision strength"].exists)
-        XCTAssertTrue(app.staticTexts["Strong"].exists)
-        XCTAssertTrue(app.staticTexts["What could make me wrong?"].exists)
+        waitForText("My recommendation: MacBook Air")
+        XCTAssertTrue(hasText("Why it fits you"))
+        XCTAssertTrue(hasText("Decision strength: Strong"))
+        XCTAssertTrue(hasText("What could make me wrong?"))
 
         // Nothing was asked, because nothing needed asking.
-        XCTAssertFalse(app.staticTexts["One thing I need to know"].exists)
+        XCTAssertFalse(hasText("One thing I need to know"))
 
         app.buttons[ID.makeDecision].tap()
 
-        XCTAssertTrue(app.staticTexts["You chose"].waitForExistence(timeout: 10))
-        XCTAssertTrue(app.staticTexts["Your choice is yours."].exists)
+        waitForText("You chose", timeout: 10)
+        XCTAssertTrue(hasText("Your choice is yours."))
 
         app.buttons[ID.doneWithDecision].tap()
 
         // It is in history, with what was chosen and how strong it was.
         app.tabBars.buttons["Decisions"].tap()
-        let row = app.staticTexts["MacBook Air vs MacBook Pro"]
-        XCTAssertTrue(row.waitForExistence(timeout: 10))
-        XCTAssertTrue(app.staticTexts["MacBook Air · Strong"].exists)
+        let row = historyRows.firstMatch
+        XCTAssertTrue(row.waitForExistence(timeout: 10), "The decision should be in history")
+        XCTAssertTrue(row.label.contains("MacBook Air vs MacBook Pro"), "Got: \(row.label)")
+        XCTAssertTrue(row.label.contains("Strong"), "Got: \(row.label)")
     }
 
     func testTheAnalysisIsOneTapAwayAndShowsItsSources() {
         launch(scenario: "straightforward")
         startDecision()
-        XCTAssertTrue(app.staticTexts["MY RECOMMENDATION"].waitForExistence(timeout: 30))
+        waitForText("My recommendation: MacBook Air")
 
         app.buttons["See analysis"].tap()
 
-        XCTAssertTrue(app.staticTexts["What you told me"].waitForExistence(timeout: 10))
-        XCTAssertTrue(app.staticTexts["What I judged it on"].exists)
-        XCTAssertTrue(app.staticTexts["How the options compare"].exists)
-        XCTAssertTrue(app.staticTexts["What I checked"].exists)
+        waitForText("What you told me", timeout: 10)
+        XCTAssertTrue(hasText("What I judged it on"))
+        XCTAssertTrue(hasText("How the options compare"))
+        XCTAssertTrue(hasText("What I checked"))
     }
 
     // MARK: Questions
@@ -155,33 +193,33 @@ final class DecideUITests: XCTestCase {
         launch(scenario: "oneQuestion")
         startDecision("Should I get the Air or the Pro for my work?")
 
-        XCTAssertTrue(app.staticTexts["One thing I need to know"].waitForExistence(timeout: 30))
+        waitForText("One thing I need to know")
 
         // A direction is already on offer before the question is answered.
-        XCTAssertTrue(app.staticTexts["I already have a direction"].exists)
+        XCTAssertTrue(hasText("I already have a direction"))
 
         // No counter, anywhere.
-        XCTAssertFalse(app.staticTexts["Question 1 of 5"].exists)
-        XCTAssertEqual(app.staticTexts.matching(NSPredicate(format: "label CONTAINS[c] 'question 1'")).count, 0)
+        XCTAssertFalse(hasText("Question 1"))
+        XCTAssertFalse(hasText(" of 5"))
 
         // Only the question the system cannot answer itself is shown.
-        XCTAssertTrue(app.staticTexts["Do you edit video, or mostly photos and documents?"].exists)
-        XCTAssertFalse(app.staticTexts["What do these cost today?"].exists)
-        XCTAssertFalse(app.staticTexts["What colour do you prefer?"].exists)
+        XCTAssertTrue(hasText("Do you edit video"))
+        XCTAssertFalse(hasText("What do these cost today?"))
+        XCTAssertFalse(hasText("What colour do you prefer?"))
 
         app.buttons["Mostly photos and documents"].tap()
         app.buttons[ID.continueAfterQuestion].tap()
 
-        XCTAssertTrue(app.staticTexts["MY RECOMMENDATION"].waitForExistence(timeout: 30))
+        waitForText("My recommendation: MacBook Air")
     }
 
     func testAQuestionCanBeDeclinedWithoutDeadEnding() {
         launch(scenario: "oneQuestion")
         startDecision()
-        XCTAssertTrue(app.staticTexts["One thing I need to know"].waitForExistence(timeout: 30))
+        waitForText("One thing I need to know")
 
         app.buttons["I'd rather not say"].tap()
-        XCTAssertTrue(app.staticTexts["MY RECOMMENDATION"].waitForExistence(timeout: 30))
+        waitForText("My recommendation: MacBook Air")
     }
 
     // MARK: Honest outcomes
@@ -190,8 +228,8 @@ final class DecideUITests: XCTestCase {
         launch(scenario: "noClearWinner")
         startDecision()
 
-        XCTAssertTrue(app.staticTexts["There isn't a clear winner"].waitForExistence(timeout: 30))
-        XCTAssertTrue(app.staticTexts["Unclear"].exists)
+        waitForText("There isn't a clear winner")
+        XCTAssertTrue(hasText("Decision strength: Unclear"))
         XCTAssertFalse(app.buttons[ID.makeDecision].exists, "There is nothing to recommend, so nothing to confirm")
         XCTAssertTrue(app.buttons["Choose for me anyway"].exists)
     }
@@ -200,11 +238,9 @@ final class DecideUITests: XCTestCase {
         launch(scenario: "researchFailure")
         startDecision()
 
-        XCTAssertTrue(app.staticTexts["MY RECOMMENDATION"].waitForExistence(timeout: 30))
+        waitForText("My recommendation: MacBook Air")
         XCTAssertTrue(
-            app.staticTexts.containing(
-                NSPredicate(format: "label CONTAINS[c] \"couldn't verify\"")
-            ).firstMatch.exists,
+            hasText("couldn't verify"),
             "A recommendation built on unverified research has to say so"
         )
     }
@@ -213,17 +249,17 @@ final class DecideUITests: XCTestCase {
         launch(scenario: "invalidResponse")
         startDecision()
 
-        XCTAssertTrue(app.staticTexts["I couldn't complete the analysis"].waitForExistence(timeout: 30))
+        waitForText("I couldn't complete the analysis")
         XCTAssertTrue(app.buttons[ID.tryAgain].exists)
-        XCTAssertFalse(app.staticTexts["MY RECOMMENDATION"].exists, "A broken response must never render as an answer")
+        XCTAssertFalse(hasText("My recommendation:"), "A broken response must never render as an answer")
     }
 
     func testBeingOfflineIsExplainedNotFaked() {
         launch(scenario: "offline")
         startDecision()
 
-        XCTAssertTrue(app.staticTexts["You're offline"].waitForExistence(timeout: 30))
-        XCTAssertFalse(app.staticTexts["MY RECOMMENDATION"].exists)
+        waitForText("You're offline")
+        XCTAssertFalse(hasText("My recommendation:"))
     }
 
     // MARK: The user's call
@@ -231,19 +267,20 @@ final class DecideUITests: XCTestCase {
     func testOverridingTheRecommendationIsNotArguedWith() {
         launch(scenario: "straightforward")
         startDecision()
-        XCTAssertTrue(app.staticTexts["MY RECOMMENDATION"].waitForExistence(timeout: 30))
+        waitForText("My recommendation: MacBook Air")
 
         app.buttons[ID.chooseSomethingElse].tap()
-        XCTAssertTrue(app.staticTexts["Your options"].waitForExistence(timeout: 10))
-        app.staticTexts["MacBook Pro"].tap()
+        let proRow = app.descendants(matching: .any).matching(identifier: ID.optionRow("pro")).firstMatch
+        XCTAssertTrue(proRow.waitForExistence(timeout: 10), "The other options should be listed")
+        proRow.tap()
 
-        XCTAssertTrue(app.staticTexts["You chose"].waitForExistence(timeout: 10))
-        XCTAssertTrue(app.staticTexts["MacBook Pro"].exists)
-        XCTAssertTrue(app.staticTexts["You're giving up"].exists)
-        XCTAssertTrue(app.staticTexts["Your choice is yours."].exists)
+        waitForText("You chose", timeout: 10)
+        XCTAssertTrue(hasText("MacBook Pro"))
+        XCTAssertTrue(hasText("You're giving up"))
+        XCTAssertTrue(hasText("Your choice is yours."))
 
         // No second-guessing anywhere on the screen.
-        XCTAssertFalse(app.staticTexts["Are you sure?"].exists)
+        XCTAssertFalse(hasText("Are you sure"))
         XCTAssertEqual(app.buttons.matching(NSPredicate(format: "label CONTAINS[c] 'accept'")).count, 0)
     }
 
@@ -252,7 +289,7 @@ final class DecideUITests: XCTestCase {
     func testADecisionSurvivesRelaunching() {
         launch(scenario: "straightforward")
         startDecision()
-        XCTAssertTrue(app.staticTexts["MY RECOMMENDATION"].waitForExistence(timeout: 30))
+        waitForText("My recommendation: MacBook Air")
         app.buttons[ID.makeDecision].tap()
         XCTAssertTrue(app.buttons[ID.doneWithDecision].waitForExistence(timeout: 10))
         app.buttons[ID.doneWithDecision].tap()
@@ -262,7 +299,7 @@ final class DecideUITests: XCTestCase {
 
         app.tabBars.buttons["Decisions"].tap()
         XCTAssertTrue(
-            app.staticTexts["MacBook Air vs MacBook Pro"].waitForExistence(timeout: 20),
+            historyRows.firstMatch.waitForExistence(timeout: 20),
             "A saved decision must still be there after a restart"
         )
     }
@@ -270,28 +307,31 @@ final class DecideUITests: XCTestCase {
     func testADecisionCanBeDeleted() {
         launch(scenario: "straightforward")
         startDecision()
-        XCTAssertTrue(app.staticTexts["MY RECOMMENDATION"].waitForExistence(timeout: 30))
+        waitForText("My recommendation: MacBook Air")
         app.buttons[ID.makeDecision].tap()
+        XCTAssertTrue(app.buttons[ID.doneWithDecision].waitForExistence(timeout: 10))
         app.buttons[ID.doneWithDecision].tap()
 
         app.tabBars.buttons["Decisions"].tap()
-        app.staticTexts["MacBook Air vs MacBook Pro"].tap()
+        XCTAssertTrue(historyRows.firstMatch.waitForExistence(timeout: 10))
+        historyRows.firstMatch.tap()
 
         app.buttons["Delete this decision"].tap()
         app.buttons["Delete"].tap()
 
-        XCTAssertTrue(app.staticTexts["Your decisions will appear here."].waitForExistence(timeout: 10))
+        waitForText("Your decisions will appear here.", timeout: 10)
     }
 
     func testEverythingCanBeDeletedFromProfile() {
         launch(scenario: "straightforward")
         startDecision()
-        XCTAssertTrue(app.staticTexts["MY RECOMMENDATION"].waitForExistence(timeout: 30))
+        waitForText("My recommendation: MacBook Air")
         app.buttons[ID.makeDecision].tap()
+        XCTAssertTrue(app.buttons[ID.doneWithDecision].waitForExistence(timeout: 10))
         app.buttons[ID.doneWithDecision].tap()
 
         app.tabBars.buttons["Profile"].tap()
-        XCTAssertTrue(app.staticTexts["Your data"].waitForExistence(timeout: 10))
+        waitForText("Your data", timeout: 10)
 
         // Each kind of data can be deleted on its own.
         XCTAssertTrue(app.buttons["Delete all Decision Memory"].exists)
@@ -302,7 +342,7 @@ final class DecideUITests: XCTestCase {
         app.buttons["Delete"].tap()
 
         app.tabBars.buttons["Decisions"].tap()
-        XCTAssertTrue(app.staticTexts["Your decisions will appear here."].waitForExistence(timeout: 10))
+        waitForText("Your decisions will appear here.", timeout: 10)
     }
 
     // MARK: Empty states and Pro
@@ -310,30 +350,30 @@ final class DecideUITests: XCTestCase {
     func testEmptyHistoryExplainsItself() {
         launch()
         app.tabBars.buttons["Decisions"].tap()
-        XCTAssertTrue(app.staticTexts["Your decisions will appear here."].waitForExistence(timeout: 20))
+        waitForText("Your decisions will appear here.", timeout: 20)
     }
 
     func testProfileOffersThePlanAndTheDataControls() {
         launch()
         app.tabBars.buttons["Profile"].tap()
-        XCTAssertTrue(app.staticTexts["Your plan"].waitForExistence(timeout: 20))
-        XCTAssertTrue(app.staticTexts["Decision Memory"].exists)
-        XCTAssertTrue(app.staticTexts["Your data"].exists)
+        waitForText("Your plan", timeout: 20)
+        XCTAssertTrue(hasText("Decision Memory"))
+        XCTAssertTrue(hasText("Your data"))
     }
 
     func testThePaywallOnlyClaimsWhatProActuallyChanges() {
         launch()
         app.tabBars.buttons["Profile"].tap()
-        XCTAssertTrue(app.staticTexts["Your plan"].waitForExistence(timeout: 20))
+        waitForText("Your plan", timeout: 20)
         app.buttons["See Pro"].firstMatch.tap()
 
-        XCTAssertTrue(app.staticTexts["Make better decisions, with less effort."].waitForExistence(timeout: 10))
+        waitForText("Make better decisions, with less effort.", timeout: 10)
         XCTAssertTrue(app.buttons["Restore Purchases"].exists, "App Review requires this, and so does anyone reinstalling")
 
         // Claims the app cannot support must not be here.
-        XCTAssertFalse(app.staticTexts["Advanced analysis"].exists)
-        XCTAssertFalse(app.staticTexts["Stress testing"].exists)
-        XCTAssertEqual(app.staticTexts.matching(NSPredicate(format: "label CONTAINS[c] 'unlimited AI'")).count, 0)
+        XCTAssertFalse(hasText("Advanced analysis"))
+        XCTAssertFalse(hasText("Stress testing"))
+        XCTAssertFalse(hasText("unlimited AI"))
     }
 
     // MARK: Accessibility and small screens
@@ -341,7 +381,7 @@ final class DecideUITests: XCTestCase {
     func testTheFlowStillWorksAtTheLargestAccessibilityTextSize() {
         launch(scenario: "straightforward", contentSize: "UICTContentSizeCategoryAccessibilityXXXL")
 
-        let input = app.textFields[ID.decisionInput]
+        let input = decisionInput
         XCTAssertTrue(input.waitForExistence(timeout: 20))
 
         let decide = app.buttons[ID.startDecision]
@@ -352,7 +392,7 @@ final class DecideUITests: XCTestCase {
         input.typeText("Air or Pro?")
         decide.tap()
 
-        XCTAssertTrue(app.staticTexts["MY RECOMMENDATION"].waitForExistence(timeout: 30))
+        waitForText("My recommendation: MacBook Air")
         let makeDecision = app.buttons[ID.makeDecision]
         XCTAssertTrue(makeDecision.exists)
         XCTAssertTrue(makeDecision.isHittable, "The decision must still be makeable at the largest text size")
@@ -360,7 +400,7 @@ final class DecideUITests: XCTestCase {
 
     func testTheKeyboardDoesNotCoverThePrimaryAction() {
         launch()
-        let input = app.textFields[ID.decisionInput]
+        let input = decisionInput
         XCTAssertTrue(input.waitForExistence(timeout: 20))
         input.tap()
         input.typeText("Which laptop should I buy?")

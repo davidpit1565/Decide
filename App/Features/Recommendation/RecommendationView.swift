@@ -275,6 +275,7 @@ private struct OtherOptionsSheet: View {
                             }
                         }
                         .buttonStyle(.plain)
+                        .accessibilityIdentifier(DecideID.optionRow(scored.optionID))
                     }
 
                     if !result.eliminated.isEmpty {

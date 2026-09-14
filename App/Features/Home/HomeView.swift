@@ -177,6 +177,7 @@ struct HomeView: View {
                         DecisionRow(record: record)
                     }
                     .buttonStyle(.plain)
+                    .accessibilityIdentifier(DecideID.historyRow)
                 }
             }
         }

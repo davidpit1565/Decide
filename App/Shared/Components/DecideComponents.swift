@@ -290,4 +290,6 @@ enum DecideID {
     static let continueAfterQuestion = "decide.question.continue"
     static let doneWithDecision = "decide.done"
     static let tryAgain = "decide.retry"
+    static let historyRow = "decide.historyRow"
+    static func optionRow(_ optionID: String) -> String { "decide.option.\(optionID)" }
 }

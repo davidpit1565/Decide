@@ -10,6 +10,9 @@ struct PrimaryButton: View {
     var systemImage: String?
     var isLoading: Bool = false
     var isEnabled: Bool = true
+    /// Stable handle for UI tests. Invisible to users, and needed because more
+    /// than one control can legitimately carry the same visible label.
+    var identifier: String?
     let action: () -> Void
 
     var body: some View {
@@ -37,12 +40,14 @@ struct PrimaryButton: View {
         .disabled(!isEnabled || isLoading)
         .accessibilityLabel(title)
         .accessibilityAddTraits(.isButton)
+        .accessibilityIdentifier(identifier ?? title)
     }
 }
 
 struct SecondaryButton: View {
     let title: String
     var systemImage: String?
+    var identifier: String?
     let action: () -> Void
 
     var body: some View {
@@ -59,6 +64,7 @@ struct SecondaryButton: View {
             .clipShape(RoundedRectangle(cornerRadius: DecideSpacing.cornerRadius, style: .continuous))
         }
         .buttonStyle(.plain)
+        .accessibilityIdentifier(identifier ?? title)
     }
 }
 
@@ -269,4 +275,19 @@ extension View {
     func screenPadding() -> some View {
         padding(.horizontal, DecideSpacing.screenMargin)
     }
+}
+
+/// Accessibility identifiers for the controls the UI tests drive.
+///
+/// These are identifiers, not labels: nothing here changes what a user sees or
+/// hears. They exist because a visible label is not always unique — "Decide" is
+/// both a tab and the primary action on the home screen.
+enum DecideID {
+    static let startDecision = "decide.start"
+    static let decisionInput = "decide.input"
+    static let makeDecision = "decide.make"
+    static let chooseSomethingElse = "decide.chooseOther"
+    static let continueAfterQuestion = "decide.question.continue"
+    static let doneWithDecision = "decide.done"
+    static let tryAgain = "decide.retry"
 }

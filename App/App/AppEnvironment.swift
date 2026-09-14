@@ -218,9 +218,18 @@ final class AppEnvironment {
 
     func makeCoordinator() -> DecisionCoordinator {
         DecisionCoordinator(
-            service: RemoteDecisionAnalysisService(configuration: configuration),
+            service: analysisService(),
             analytics: analytics,
             memoryProvider: { [weak self] in self?.memory ?? [] }
         )
+    }
+
+    private func analysisService() -> DecisionAnalysisService {
+        #if DEBUG
+        // Only ever non-nil when the app was launched by the UI test suite with
+        // a scenario argument. Compiled out of Release.
+        if let scripted = UITestHarness.analysisService() { return scripted }
+        #endif
+        return RemoteDecisionAnalysisService(configuration: configuration)
     }
 }

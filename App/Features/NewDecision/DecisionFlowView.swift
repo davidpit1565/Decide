@@ -206,7 +206,11 @@ private struct QuestionScreen: View {
         .scrollDismissesKeyboard(.interactively)
         .safeAreaInset(edge: .bottom) {
             VStack(spacing: DecideSpacing.s) {
-                PrimaryButton(title: "Continue", isEnabled: canSubmit) {
+                PrimaryButton(
+                    title: "Continue",
+                    isEnabled: canSubmit,
+                    identifier: DecideID.continueAfterQuestion
+                ) {
                     isFocused = false
                     onAnswer(submissionValue)
                 }
@@ -405,7 +409,7 @@ private struct ErrorScreen: View {
             .accessibilityElement(children: .combine)
 
             if error.isRetryable {
-                PrimaryButton(title: "Try again", action: onRetry)
+                PrimaryButton(title: "Try again", identifier: DecideID.tryAgain, action: onRetry)
             }
             SecondaryButton(title: "Close", action: onClose)
             Spacer(minLength: 0)

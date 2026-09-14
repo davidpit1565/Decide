@@ -2,10 +2,24 @@ name: CI
 
 on:
   push:
-    branches: ["**"]
+    branches: [main]
   pull_request:
 
+# One run per branch. A new push supersedes the one in flight instead of paying
+# for both, and a PR no longer triggers a duplicate push run.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
+  hygiene:
+    name: Release hygiene
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: No test-only code or credentials can reach a shipping build
+        run: python3 Scripts/check-release-hygiene.py
+
   decidekit:
     name: DecideKit (engines and pipeline)
     runs-on: ubuntu-latest
@@ -38,8 +52,14 @@ jobs:
         run: git diff --exit-code Packages/DecideKit/Tests/DecideCoreTests/Fixtures/backend_contract.json
 
   app:
-    name: iOS app
+    name: iOS app (${{ matrix.device }})
     runs-on: macos-15
+    strategy:
+      fail-fast: false
+      matrix:
+        # The largest current phone and the smallest supported one: layout has to
+        # hold at both ends.
+        device: ["iPhone 16", "iPhone SE (3rd generation)"]
     steps:
       - uses: actions/checkout@v4
       - name: Build and test
@@ -47,6 +67,6 @@ jobs:
           xcodebuild test \
             -project Decide.xcodeproj \
             -scheme Decide \
-            -destination 'platform=iOS Simulator,name=iPhone 16,OS=latest' \
+            -destination 'platform=iOS Simulator,name=${{ matrix.device }},OS=latest' \
             -skipPackagePluginValidation \
             CODE_SIGNING_ALLOWED=NO

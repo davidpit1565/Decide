@@ -41,7 +41,12 @@ struct HomeView: View {
             .navigationBarTitleDisplayMode(.inline)
             .safeAreaInset(edge: .bottom) {
                 // The primary action stays within thumb reach and above the keyboard.
-                PrimaryButton(title: "Decide", systemImage: "arrow.right", isEnabled: canDecide) {
+                PrimaryButton(
+                    title: "Decide",
+                    systemImage: "arrow.right",
+                    isEnabled: canDecide,
+                    identifier: DecideID.startDecision
+                ) {
                     startDecision()
                 }
                 .screenPadding()
@@ -98,6 +103,7 @@ struct HomeView: View {
                     .stroke(isInputFocused ? DecideColor.accent : DecideColor.separator, lineWidth: 1)
             )
             .accessibilityLabel("What are you deciding?")
+            .accessibilityIdentifier(DecideID.decisionInput)
 
             if !isConnected {
                 InlineNotice(

@@ -63,16 +63,17 @@ struct RecommendationView: View {
     private var bottomAction: some View {
         VStack(spacing: DecideSpacing.s) {
             if hasChosen {
-                PrimaryButton(title: "Done", action: onDone)
+                PrimaryButton(title: "Done", identifier: DecideID.doneWithDecision, action: onDone)
             } else if let recommended = result.recommendedOption, result.strength != .unclear {
                 // Never "accept". The user is not approving DECIDE's decision.
-                PrimaryButton(title: "Make my decision") {
+                PrimaryButton(title: "Make my decision", identifier: DecideID.makeDecision) {
                     onChoose(recommended.id)
                 }
                 if result.ranking.count > 1 {
                     Button("Choose something else") { showingOtherOptions = true }
                         .font(DecideFont.footnote)
                         .frame(minHeight: DecideSpacing.minimumTouchTarget)
+                        .accessibilityIdentifier(DecideID.chooseSomethingElse)
                 }
             }
         }

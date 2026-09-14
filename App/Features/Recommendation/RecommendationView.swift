@@ -31,14 +31,17 @@ struct RecommendationView: View {
                     )
                 }
 
-                // A plain Button driving `.navigationDestination(isPresented:)`,
-                // not a NavigationLink: in CI, a NavigationLink at this exact spot
-                // (a ScrollView inside a NavigationStack inside a fullScreenCover)
-                // reliably received its tap -- Synthesize event completed, the
-                // control was genuinely isHittable -- but never actually pushed,
-                // while every plain Button on this same screen (Make my decision,
-                // Choose something else) always did. Decoupling the tap from the
-                // push sidesteps whatever was swallowing it.
+                // A push (NavigationLink, then .navigationDestination(isPresented:))
+                // never completed here in CI on either device, even with a
+                // confirmed isHittable, real tap() -- yet the identical push from
+                // DecisionsView into DecisionDetailsView, a NavigationStack that
+                // isn't inside a fullScreenCover, works. RecommendationView's
+                // NavigationStack lives inside DecisionFlowView's fullScreenCover;
+                // pushing there is the one thing that doesn't work, while every
+                // plain state change on this exact screen (choosing an option,
+                // confirming a choice) does. So this presents modally instead of
+                // pushing -- a mechanism (.sheet) that doesn't go through
+                // UINavigationController's push/pop machinery at all.
                 Button {
                     showingAnalysis = true
                 } label: {
@@ -67,8 +70,15 @@ struct RecommendationView: View {
                 onChoose(optionID)
             }
         }
-        .navigationDestination(isPresented: $showingAnalysis) {
-            AnalysisView(result: result)
+        .sheet(isPresented: $showingAnalysis) {
+            NavigationStack {
+                AnalysisView(result: result)
+                    .toolbar {
+                        ToolbarItem(placement: .topBarTrailing) {
+                            Button("Done") { showingAnalysis = false }
+                        }
+                    }
+            }
         }
     }
 

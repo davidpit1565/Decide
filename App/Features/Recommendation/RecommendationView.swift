@@ -41,6 +41,11 @@ struct RecommendationView: View {
                     }
                     .foregroundStyle(DecideColor.accent)
                     .frame(maxWidth: .infinity, minHeight: DecideSpacing.minimumTouchTarget, alignment: .leading)
+                    // Without this, NavigationLink's tappable area follows the
+                    // label's intrinsic content (the narrow text + chevron) and
+                    // not the frame it was expanded to, so tapping anywhere in
+                    // the rest of this full-width row would silently do nothing.
+                    .contentShape(Rectangle())
                 }
                 .accessibilityHint("Criteria, comparison, assumptions, risks and sources")
             }

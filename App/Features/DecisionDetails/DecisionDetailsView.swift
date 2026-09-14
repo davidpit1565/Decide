@@ -33,6 +33,10 @@ struct DecisionDetailsView: View {
                     }
                     .foregroundStyle(DecideColor.accent)
                     .frame(maxWidth: .infinity, minHeight: DecideSpacing.minimumTouchTarget, alignment: .leading)
+                    // See the identical NavigationLink in RecommendationView for why
+                    // this is needed: without it, only the narrow text + chevron is
+                    // actually tappable, not the row it visually fills.
+                    .contentShape(Rectangle())
                 }
 
                 Button(role: .destructive) {

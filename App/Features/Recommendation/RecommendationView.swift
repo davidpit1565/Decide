@@ -10,6 +10,7 @@ struct RecommendationView: View {
     let onDone: () -> Void
 
     @State private var showingOtherOptions = false
+    @State private var showingAnalysis = false
 
     private var hasChosen: Bool { chosenOptionID != nil }
 
@@ -30,8 +31,16 @@ struct RecommendationView: View {
                     )
                 }
 
-                NavigationLink {
-                    AnalysisView(result: result)
+                // A plain Button driving `.navigationDestination(isPresented:)`,
+                // not a NavigationLink: in CI, a NavigationLink at this exact spot
+                // (a ScrollView inside a NavigationStack inside a fullScreenCover)
+                // reliably received its tap -- Synthesize event completed, the
+                // control was genuinely isHittable -- but never actually pushed,
+                // while every plain Button on this same screen (Make my decision,
+                // Choose something else) always did. Decoupling the tap from the
+                // push sidesteps whatever was swallowing it.
+                Button {
+                    showingAnalysis = true
                 } label: {
                     HStack {
                         Text("See analysis")
@@ -41,10 +50,6 @@ struct RecommendationView: View {
                     }
                     .foregroundStyle(DecideColor.accent)
                     .frame(maxWidth: .infinity, minHeight: DecideSpacing.minimumTouchTarget, alignment: .leading)
-                    // Without this, NavigationLink's tappable area follows the
-                    // label's intrinsic content (the narrow text + chevron) and
-                    // not the frame it was expanded to, so tapping anywhere in
-                    // the rest of this full-width row would silently do nothing.
                     .contentShape(Rectangle())
                 }
                 .accessibilityHint("Criteria, comparison, assumptions, risks and sources")
@@ -61,6 +66,9 @@ struct RecommendationView: View {
                 showingOtherOptions = false
                 onChoose(optionID)
             }
+        }
+        .navigationDestination(isPresented: $showingAnalysis) {
+            AnalysisView(result: result)
         }
     }
 

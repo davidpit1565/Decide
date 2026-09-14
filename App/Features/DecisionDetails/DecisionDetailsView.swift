@@ -11,6 +11,7 @@ struct DecisionDetailsView: View {
     @State private var showingOutcome = false
     @State private var showingDeleteConfirmation = false
     @State private var newDecision: ActiveDecision?
+    @State private var showingAnalysis = false
 
     private var current: DecisionRecord {
         environment.decisions.first { $0.id == record.id } ?? record
@@ -23,8 +24,12 @@ struct DecisionDetailsView: View {
                 whatYouToldMe
                 outcomeSection
 
-                NavigationLink {
-                    AnalysisView(result: current.result)
+                // A plain Button driving `.navigationDestination(isPresented:)`,
+                // not a NavigationLink -- see the identical row in
+                // RecommendationView for why: a NavigationLink here was never
+                // observed to push, even though its tap was genuinely received.
+                Button {
+                    showingAnalysis = true
                 } label: {
                     HStack {
                         Text("See full analysis")
@@ -33,9 +38,6 @@ struct DecisionDetailsView: View {
                     }
                     .foregroundStyle(DecideColor.accent)
                     .frame(maxWidth: .infinity, minHeight: DecideSpacing.minimumTouchTarget, alignment: .leading)
-                    // See the identical NavigationLink in RecommendationView for why
-                    // this is needed: without it, only the narrow text + chevron is
-                    // actually tappable, not the row it visually fills.
                     .contentShape(Rectangle())
                 }
 
@@ -74,6 +76,9 @@ struct DecisionDetailsView: View {
         }
         .fullScreenCover(item: $newDecision) { active in
             DecisionFlowView(prompt: active.prompt)
+        }
+        .navigationDestination(isPresented: $showingAnalysis) {
+            AnalysisView(result: current.result)
         }
     }
 

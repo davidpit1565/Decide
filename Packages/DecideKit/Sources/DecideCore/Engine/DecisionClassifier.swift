@@ -42,6 +42,18 @@ public enum DecisionClassifier {
         public let complexity: DecisionComplexity
         public let researchLevel: ResearchLevel
         public let optionCountHint: Int
+
+        public init(
+            category: DecisionCategory,
+            complexity: DecisionComplexity,
+            researchLevel: ResearchLevel,
+            optionCountHint: Int
+        ) {
+            self.category = category
+            self.complexity = complexity
+            self.researchLevel = researchLevel
+            self.optionCountHint = optionCountHint
+        }
     }
 
     public static func classify(_ text: String) -> Classification {

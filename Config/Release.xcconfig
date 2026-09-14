@@ -1,0 +1,10 @@
+#include "Shared.xcconfig"
+
+SWIFT_OPTIMIZATION_LEVEL = -O
+SWIFT_COMPILATION_MODE = wholemodule
+ENABLE_TESTABILITY = NO
+VALIDATE_PRODUCT = YES
+DEBUG_INFORMATION_FORMAT = dwarf-with-dsym
+
+// No debug-only behaviour, no test data, no mock services in a release build.
+SWIFT_ACTIVE_COMPILATION_CONDITIONS =

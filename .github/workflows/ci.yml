@@ -62,11 +62,36 @@ jobs:
         device: ["iPhone 16", "iPhone SE (3rd generation)"]
     steps:
       - uses: actions/checkout@v4
+
+      # Naming a device in the destination assumes the runner happens to have one
+      # instantiated, which is not guaranteed and varies between images. Create
+      # the device we want against whatever iOS runtime is installed.
+      - name: Create the simulator
+        id: simulator
+        run: |
+          set -euo pipefail
+          xcrun simctl list runtimes
+          runtime=$(xcrun simctl list runtimes --json | python3 -c "
+          import json, sys
+          runtimes = [
+              r for r in json.load(sys.stdin)['runtimes']
+              if r.get('isAvailable') and r.get('platform') == 'iOS'
+          ]
+          if not runtimes:
+              sys.exit('No iOS simulator runtime is installed on this runner')
+          print(sorted(runtimes, key=lambda r: r['version'])[-1]['identifier'])
+          ")
+          echo "Using runtime: $runtime"
+          udid=$(xcrun simctl create "ci-${{ matrix.device }}" "${{ matrix.device }}" "$runtime")
+          echo "Created ${{ matrix.device }} as $udid"
+          echo "udid=$udid" >> "$GITHUB_OUTPUT"
+
       - name: Build and test
         run: |
+          set -euo pipefail
           xcodebuild test \
             -project Decide.xcodeproj \
             -scheme Decide \
-            -destination 'platform=iOS Simulator,name=${{ matrix.device }},OS=latest' \
+            -destination "id=${{ steps.simulator.outputs.udid }}" \
             -skipPackagePluginValidation \
             CODE_SIGNING_ALLOWED=NO

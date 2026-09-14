@@ -1,0 +1,10 @@
+{
+  "schemaVersion": 1,
+  "decisionStatus": "ready",
+  "category": "purchase",
+  "complexity": "simple",
+  "understanding": { "restatement": "Choosing a bike." },
+  "criteria": [{ "id": "price", "name": "Price", "weight": 1 }],
+  "options": [{ "id": "a", "name": "Bike A", "scores": { "price": 0.7 } }],
+  "recommendation": { "optionId": "ghost", "headline": "Ghost", "reasons": [] }
+}

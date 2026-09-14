@@ -235,14 +235,17 @@ private final class StubAnalysisService: DecisionAnalysisService, @unchecked Sen
                 .init(id: "convenience", name: "Convenience", weight: 0.6),
                 .init(id: "price", name: "Price", weight: 0.4)
             ],
-            // Dominant on both criteria so the recommendation is genuinely Strong —
-            // verified against every StabilityEngine scenario (weight variations,
-            // equal weights, the priority swap, and weakening the winner) before
-            // relying on it here; a narrower margin let a stability variation flip
-            // the winner and made the test's own "strong" expectation wrong.
+            // Dominant enough on convenience to stay Strong across every
+            // StabilityEngine scenario (weight variations, equal weights, the
+            // priority swap, weakening the winner — verified by simulation before
+            // relying on it here: hold rate 1.0, margin 0.45), while still losing
+            // on price — the trade-off the memory tests below need to learn
+            // "prioritizes convenience over price" from. A version dominant on
+            // both criteria fixed Strong but left no trade-off, so memory could
+            // never find a preference to learn; this fixture satisfies both.
             options: [
-                .init(id: "air", name: "MacBook Air", scores: ["convenience": 0.95, "price": 0.85]),
-                .init(id: "pro", name: "MacBook Pro", scores: ["convenience": 0.2, "price": 0.3])
+                .init(id: "air", name: "MacBook Air", scores: ["convenience": 0.98, "price": 0.55]),
+                .init(id: "pro", name: "MacBook Pro", scores: ["convenience": 0.1, "price": 0.75])
             ],
             recommendation: .init(
                 optionId: "air",

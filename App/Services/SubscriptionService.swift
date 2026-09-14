@@ -116,7 +116,7 @@ final class SubscriptionService {
 
             var isInGracePeriod = false
             var isInBillingRetry = false
-            if let status = try? await transaction.subscriptionStatus,
+            if let status = await transaction.subscriptionStatus,
                case .verified(let renewalInfo) = status.renewalInfo {
                 isInGracePeriod = renewalInfo.gracePeriodExpirationDate.map { $0 > Date() } ?? false
                 isInBillingRetry = renewalInfo.isInBillingRetry

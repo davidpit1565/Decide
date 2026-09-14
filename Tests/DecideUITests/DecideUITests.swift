@@ -4,14 +4,16 @@ import XCTest
 /// need a simulator; run with:
 ///
 ///     xcodebuild test -scheme Decide -destination 'platform=iOS Simulator,name=iPhone 16'
+///
+/// XCUIElement is main-actor isolated, so the whole case runs there.
+@MainActor
 final class DecideUITests: XCTestCase {
 
     private var app: XCUIApplication!
 
-    override func setUp() {
+    override func setUp() async throws {
         continueAfterFailure = false
         app = XCUIApplication()
-        app.launchArguments += ["-UITests"]
         app.launch()
     }
 
@@ -76,7 +78,7 @@ final class DecideUITests: XCTestCase {
 
     // MARK: Errors
 
-    func testStartingADecisionAlwaysLeadsSomewhere() {
+    func testStartingADecisionAlwaysLeadsSomewhere() async throws {
         let field = app.textFields.firstMatch
         XCTAssertTrue(field.waitForExistence(timeout: 10))
         field.tap()
@@ -96,7 +98,7 @@ final class DecideUITests: XCTestCase {
         let deadline = Date().addingTimeInterval(30)
         while Date() < deadline {
             if outcomes.contains(where: { $0.exists }) { return }
-            Thread.sleep(forTimeInterval: 0.25)
+            try await Task.sleep(nanoseconds: 250_000_000)
         }
         XCTFail("Starting a decision left the user with nothing on screen")
     }

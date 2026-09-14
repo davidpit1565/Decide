@@ -23,7 +23,10 @@ final class DecisionCoordinatorTests: XCTestCase {
         timeout: TimeInterval = 5
     ) async throws {
         let deadline = Date().addingTimeInterval(timeout)
-        while Date() < deadline {
+        // Phase is checked before the deadline, not after: otherwise a phase that
+        // settles during the final sleep can still report failure if the deadline
+        // happens to pass in that same window.
+        while true {
             let phase = coordinator.phase
             let isSettled: Bool
             switch phase {
@@ -31,9 +34,12 @@ final class DecisionCoordinatorTests: XCTestCase {
             default: isSettled = true
             }
             if isSettled, phase != previous { return }
+            guard Date() < deadline else {
+                XCTFail("Pipeline did not settle: \(phase)")
+                return
+            }
             try await Task.sleep(nanoseconds: 2_000_000)
         }
-        XCTFail("Pipeline did not settle: \(coordinator.phase)")
     }
 
     // MARK: Happy path
@@ -347,7 +353,7 @@ final class BudgetEnforcementTests: XCTestCase {
 
     private func settle(_ coordinator: DecisionCoordinator, ignoring previous: DecisionCoordinator.Phase? = nil) async throws {
         let deadline = Date().addingTimeInterval(5)
-        while Date() < deadline {
+        while true {
             let phase = coordinator.phase
             let isSettled: Bool
             switch phase {
@@ -355,9 +361,12 @@ final class BudgetEnforcementTests: XCTestCase {
             default: isSettled = true
             }
             if isSettled, phase != previous { return }
+            guard Date() < deadline else {
+                XCTFail("Pipeline did not settle: \(phase)")
+                return
+            }
             try await Task.sleep(nanoseconds: 2_000_000)
         }
-        XCTFail("Pipeline did not settle: \(coordinator.phase)")
     }
 
     func testABacklogOfQuestionsCannotOutspendTheBudget() async throws {

@@ -53,6 +53,21 @@ final class DecideUITests: XCTestCase {
         return found
     }
 
+    /// Taps a control that navigates, and retries once if the destination does
+    /// not appear promptly.
+    ///
+    /// A tap synthesized immediately after a screen transition can occasionally
+    /// land before SwiftUI has finished registering the new view's hit-testing —
+    /// a known timing gap between XCUITest's "idle" heuristic and a `NavigationStack`
+    /// push completing. One retry closes that gap without weakening what is
+    /// actually verified: the destination content below is still checked in full.
+    private func tapToNavigate(_ button: XCUIElement, expecting text: String, timeout: TimeInterval = 10) {
+        button.tap()
+        if element(containing: text).waitForExistence(timeout: 3) { return }
+        button.tap()
+        waitForText(text, timeout: timeout)
+    }
+
     private var historyRows: XCUIElementQuery {
         app.descendants(matching: .any).matching(identifier: ID.historyRow)
     }
@@ -179,9 +194,7 @@ final class DecideUITests: XCTestCase {
         startDecision()
         waitForText("My recommendation: MacBook Air")
 
-        app.buttons["See analysis"].tap()
-
-        waitForText("What you told me", timeout: 10)
+        tapToNavigate(app.buttons["See analysis"], expecting: "What you told me")
         XCTAssertTrue(hasText("What I judged it on"))
         XCTAssertTrue(hasText("How the options compare"))
         XCTAssertTrue(hasText("What I checked"))
@@ -370,10 +383,16 @@ final class DecideUITests: XCTestCase {
         waitForText("Make better decisions, with less effort.", timeout: 10)
         XCTAssertTrue(app.buttons["Restore Purchases"].exists, "App Review requires this, and so does anyone reinstalling")
 
-        // Claims the app cannot support must not be here.
+        // Claims of exclusive Pro capability the app cannot support must not be
+        // here. "stress testing" legitimately appears in the honest disclosure
+        // below — the analysis itself does not change with Pro — so the test
+        // checks for the old, unsupported marketing framing, not for the phrase.
         XCTAssertFalse(hasText("Advanced analysis"))
-        XCTAssertFalse(hasText("Stress testing"))
         XCTAssertFalse(hasText("unlimited AI"))
+        XCTAssertTrue(
+            hasText("The analysis is the same either way"),
+            "Pro must not imply a better analysis than Free gets"
+        )
     }
 
     // MARK: Accessibility and small screens

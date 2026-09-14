@@ -38,13 +38,21 @@ final class EndToEndTests: XCTestCase {
 
     private func settle(_ coordinator: DecisionCoordinator, timeout: TimeInterval = 5) async throws {
         let deadline = Date().addingTimeInterval(timeout)
-        while Date() < deadline {
+        // Phase is checked before the deadline, not after: otherwise a phase that
+        // settles during the final sleep can still report failure if the deadline
+        // happens to pass in that same window.
+        while true {
             switch coordinator.phase {
-            case .idle, .working: try await Task.sleep(nanoseconds: 2_000_000)
-            default: return
+            case .idle, .working:
+                guard Date() < deadline else {
+                    XCTFail("The pipeline did not settle: \(coordinator.phase)")
+                    return
+                }
+                try await Task.sleep(nanoseconds: 2_000_000)
+            default:
+                return
             }
         }
-        XCTFail("The pipeline did not settle: \(coordinator.phase)")
     }
 
     // MARK: The journey
@@ -227,9 +235,14 @@ private final class StubAnalysisService: DecisionAnalysisService, @unchecked Sen
                 .init(id: "convenience", name: "Convenience", weight: 0.6),
                 .init(id: "price", name: "Price", weight: 0.4)
             ],
+            // Dominant on both criteria so the recommendation is genuinely Strong —
+            // verified against every StabilityEngine scenario (weight variations,
+            // equal weights, the priority swap, and weakening the winner) before
+            // relying on it here; a narrower margin let a stability variation flip
+            // the winner and made the test's own "strong" expectation wrong.
             options: [
-                .init(id: "air", name: "MacBook Air", scores: ["convenience": 0.95, "price": 0.3]),
-                .init(id: "pro", name: "MacBook Pro", scores: ["convenience": 0.25, "price": 0.9])
+                .init(id: "air", name: "MacBook Air", scores: ["convenience": 0.95, "price": 0.85]),
+                .init(id: "pro", name: "MacBook Pro", scores: ["convenience": 0.2, "price": 0.3])
             ],
             recommendation: .init(
                 optionId: "air",

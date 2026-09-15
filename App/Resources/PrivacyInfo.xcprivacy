@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>NSPrivacyTracking</key>
+	<false/>
+	<key>NSPrivacyTrackingDomains</key>
+	<array/>
+	<key>NSPrivacyCollectedDataTypes</key>
+	<array>
+		<dict>
+			<!--
+			  The text of a decision is sent to DECIDE's backend so it can be
+			  analysed. It is not linked to an identity and is not used for
+			  tracking. Decisions, memory and outcomes are stored on the device.
+			-->
+			<key>NSPrivacyCollectedDataType</key>
+			<string>NSPrivacyCollectedDataTypeOtherUserContent</string>
+			<key>NSPrivacyCollectedDataTypeLinked</key>
+			<false/>
+			<key>NSPrivacyCollectedDataTypeTracking</key>
+			<false/>
+			<key>NSPrivacyCollectedDataTypePurposes</key>
+			<array>
+				<string>NSPrivacyCollectedDataTypePurposeAppFunctionality</string>
+			</array>
+		</dict>
+		<!--
+		  Purchase history is deliberately NOT declared. The app reads the
+		  StoreKit entitlement on the device to decide whether Pro is active and
+		  never transmits it; Apple's definition of collection is data sent off
+		  the device. Declaring it would overstate what this app does.
+		-->
+	</array>
+	<!--
+	  No required-reason API is called directly by this app. Verify with Xcode's
+	  privacy report at archive time, and add an entry here if a dependency adds one.
+	-->
+	<key>NSPrivacyAccessedAPITypes</key>
+	<array/>
+</dict>
+</plist>

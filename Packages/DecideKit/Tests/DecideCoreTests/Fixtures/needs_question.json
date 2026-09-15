@@ -1,0 +1,18 @@
+{
+  "schemaVersion": 1,
+  "decisionStatus": "needs_one_question",
+  "category": "career",
+  "complexity": "complex",
+  "understanding": { "restatement": "You're deciding whether to take a new job offer." },
+  "requiredQuestions": [
+    { "id": "relocate", "text": "Would you be willing to relocate?", "kind": "single_choice", "choices": ["Yes", "No"], "expectedImpact": 0.9, "friction": 0.2, "answerableByResearch": false },
+    { "id": "salary", "text": "What is the market salary for this role?", "expectedImpact": 0.7, "friction": 0.6, "answerableByResearch": true },
+    { "id": "colour", "text": "What's your favourite colour?", "expectedImpact": 0.02, "friction": 0.1, "answerableByResearch": false }
+  ],
+  "researchNeeded": { "level": "deep", "topics": ["market salary"] },
+  "criteria": [{ "id": "comp", "name": "Compensation", "weight": 0.5 }, { "id": "growth", "name": "Growth", "weight": 0.5 }],
+  "options": [
+    { "id": "stay", "name": "Stay", "scores": { "comp": 0.5, "growth": 0.4 } },
+    { "id": "move", "name": "Take the offer", "scores": { "comp": 0.8, "growth": 0.7 } }
+  ]
+}

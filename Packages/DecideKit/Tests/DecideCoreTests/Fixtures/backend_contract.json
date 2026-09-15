@@ -1,0 +1,117 @@
+{
+  "schemaVersion": 1,
+  "decisionStatus": "ready",
+  "category": "technology",
+  "complexity": "medium",
+  "understanding": {
+    "restatement": "You're choosing between a MacBook Air and a MacBook Pro for daily work and photo editing.",
+    "knownContext": [
+      "Carries the laptop every day"
+    ],
+    "whatMatters": [
+      "Portability",
+      "Enough power for photo editing"
+    ]
+  },
+  "preliminaryRecommendation": {
+    "optionId": "air",
+    "rationale": "Portability is doing most of the work here."
+  },
+  "requiredQuestions": [],
+  "researchNeeded": {
+    "level": "light",
+    "topics": [
+      "current pricing"
+    ]
+  },
+  "criteria": [
+    {
+      "id": "portability",
+      "name": "Portability",
+      "weight": 0.45,
+      "rationale": "Carried every day."
+    },
+    {
+      "id": "performance",
+      "name": "Performance",
+      "weight": 0.35,
+      "rationale": null
+    },
+    {
+      "id": "price",
+      "name": "Price",
+      "weight": 0.2,
+      "rationale": null
+    }
+  ],
+  "options": [
+    {
+      "id": "air",
+      "name": "MacBook Air",
+      "summary": "Lighter, fanless, cheaper.",
+      "scores": {
+        "portability": 0.95,
+        "performance": 0.62,
+        "price": 0.8
+      },
+      "failedConstraints": []
+    },
+    {
+      "id": "pro",
+      "name": "MacBook Pro",
+      "summary": "Faster, heavier, more expensive.",
+      "scores": {
+        "portability": 0.5,
+        "performance": 0.95,
+        "price": 0.35
+      },
+      "failedConstraints": []
+    }
+  ],
+  "recommendation": {
+    "optionId": "air",
+    "headline": "Best fit for you",
+    "reasons": [
+      {
+        "title": "It's the one you'll actually carry",
+        "detail": "You move with it daily and the Air is meaningfully lighter."
+      },
+      {
+        "title": "Fast enough for your editing",
+        "detail": "Your photo work sits well inside what the Air handles."
+      }
+    ]
+  },
+  "tradeoffs": [
+    {
+      "gaining": "Portability",
+      "givingUp": "Sustained performance on long exports"
+    }
+  ],
+  "risks": [
+    {
+      "title": "Heavier editing later",
+      "detail": "If your work shifts to video, the Air will feel tight.",
+      "severity": "medium"
+    }
+  ],
+  "assumptions": [
+    {
+      "statement": "Photo editing means Lightroom-scale work.",
+      "impactIfWrong": "The Pro becomes the better choice."
+    }
+  ],
+  "research": [
+    {
+      "claim": "The MacBook Air weighs about 1.24 kg versus 1.55 kg for the 14-inch Pro.",
+      "sourceTitle": "Apple technical specifications",
+      "sourceUrl": "https://www.apple.com/macbook-air/specs/",
+      "retrievedAt": "2026-09-01T10:00:00Z",
+      "verified": true
+    }
+  ],
+  "conflicts": [],
+  "whatCouldMakeMeWrong": [
+    "If you start exporting long 4K video, the Pro wins."
+  ]
+}

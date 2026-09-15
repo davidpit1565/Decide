@@ -1,0 +1,265 @@
+# DECIDE backend
+
+One endpoint. It exists so the iPhone app never has to hold a model provider
+credential, and so the cost of a decision can be controlled somewhere the user
+cannot tamper with.
+
+```
+iPhone  ->  POST /v1/decisions/analyze  ->  Anthropic API  ->  validated JSON  ->  iPhone
+```
+
+## What it does
+
+1. **Validates the request** against the shared contract (`src/schema.ts`) before
+   anything is spent.
+2. **Rate limits** per client — a short burst window and a much longer daily
+   one — and optionally requires a bearer token.
+3. **Caps concurrency** globally, so however many identities arrive at once,
+   only a bounded number can be spending money at the same time.
+4. **Sets a budget** from the decision's complexity (`src/budget.ts`): effort
+   level, token ceiling, and how many web searches the decision is worth. A
+   trivial decision buys no research at all.
+5. **Researches** what can be researched (`src/research.ts`), recording every URL
+   the search tool actually returned.
+6. **Analyses** with a required output schema (`src/analyze.ts`), so the response
+   is structured rather than parsed out of prose.
+7. **Validates again** (`src/validate.ts`) — this is the part that matters:
+   - a citation whose URL was not actually retrieved is stripped and marked
+     unverified, so a fabricated source cannot reach the user;
+   - a recommendation pointing at an option that does not exist is removed;
+   - questions beyond the app's budget, or that the system could research itself,
+     are dropped;
+   - the model cannot talk its way into a bigger research budget;
+   - any confidence percentage in user-facing text is removed. Decision strength
+     is computed on the device by re-running the analysis under varied
+     priorities — a number from the model would be invented certainty.
+
+## Running it
+
+```bash
+cp .env.example .env     # add your ANTHROPIC_API_KEY
+npm install
+npm test                 # 43 tests, no network, no spend
+npm run build && npm start
+```
+
+The app expects `DecideAPIBaseURL` (in `Config/Shared.xcconfig`) to point at this
+service over HTTPS. Anything that is not https is ignored by the app.
+
+## Deploying
+
+The handler in `src/handler.ts` is framework-agnostic — `{method, path, headers,
+body, clientKey}` in, `{status, headers, body}` out — so it drops into a
+serverless function or sits behind the standalone server in `src/index.ts`.
+Whatever runs it must terminate TLS.
+
+Set in the environment, never in code:
+
+| Variable | Purpose |
+|---|---|
+| `ANTHROPIC_API_KEY` | The only credential. Never leaves the server. |
+| `DECIDE_RATE_LIMIT`, `DECIDE_RATE_WINDOW_SECONDS` | Requests per burst window, per client. |
+| `DECIDE_DAILY_LIMIT` | Requests per 24h, per client — bounds sustained abuse the burst window alone does not. |
+| `DECIDE_MAX_CONCURRENT_ANALYSES` | How many analyses may run at once, across every client. |
+| `DECIDE_TRUST_PROXY` | `1` only if a proxy you control sets `x-forwarded-for` *and* the origin is not otherwise reachable. Read `.env.example` before setting this — wrong in either direction is a real problem, not a formality. |
+| `DECIDE_CLIENT_TOKEN` | Optional bearer token. Coarse filter only — see below. |
+| `DECIDE_REQUIRE_ATTESTATION` | `1` refuses every request until App Attest is implemented. |
+
+### First production deployment
+
+Nothing here needs a framework, a container, or new infrastructure: the
+existing `npm run build && npm start` already produces exactly what
+production runs. Any host that can run a persistent Node process and put
+real TLS in front of it — a small VPS behind a reverse proxy, or a
+platform-as-a-service that terminates HTTPS for you — is enough.
+
+1. **Runtime.** Node 20 or newer (`engines` in `package.json`); CI runs 22, so
+   prefer 22 to run on exactly what was tested.
+2. **Build and start.**
+   ```bash
+   npm ci
+   npm run build     # tsc -> dist/
+   npm start         # node dist/index.js
+   ```
+   `PORT` (default `8787`) is the only thing the process itself reads for its
+   listen address.
+3. **TLS.** `src/index.ts` is a plain `http.createServer` — it does not
+   terminate TLS itself. Something in front of it must: the platform's own
+   HTTPS layer, or a reverse proxy (Caddy, nginx) with a real certificate.
+   The iOS app refuses anything that isn't `https://` with a non-empty host
+   (verified in `AppConfiguration.swift`), so a plain-HTTP deployment simply
+   won't be reachable from the app at all.
+4. **Health check.** `GET /healthz` — no auth, no rate limit, no model call,
+   answers `{"status":"ok"}` immediately. Point the platform's own health
+   probe at this path.
+5. **Secrets.** Set `ANTHROPIC_API_KEY` (and `DECIDE_CLIENT_TOKEN`, if used)
+   through the platform's secret/environment store — never in a committed
+   file. `.env` is git-ignored; only `.env.example`, which holds no real
+   value, is tracked.
+6. **Proxy configuration.** If the platform puts its own load balancer or
+   CDN in front of this process, set `DECIDE_TRUST_PROXY=1` *and* confirm
+   the process itself is not separately reachable from the public internet
+   (most PaaS platforms guarantee this by construction; a self-managed VPS
+   needs an explicit firewall rule). If you're not certain both are true,
+   leave it unset — an overly strict shared rate-limit bucket is a much
+   smaller problem than a forgeable one.
+7. **Rate, daily and concurrency limits.** Ship with the defaults
+   (`DECIDE_RATE_LIMIT=20`, `DECIDE_DAILY_LIMIT=200`,
+   `DECIDE_MAX_CONCURRENT_ANALYSES=5`) unless you have a specific reason to
+   tighten them for a first controlled rollout — they are safe starting
+   points, not requirements to change.
+8. **Timeouts.** `requestTimeout` / `headersTimeout` / `keepAliveTimeout` are
+   set in `src/index.ts` and apply as long as this process is what's
+   actually listening. They do **not** apply if you instead port `handle()`
+   into a serverless function (still possible — it's framework-agnostic by
+   design — but that's a different deployment shape than what's committed
+   today); in that case the platform's own timeout setting is what governs,
+   and needs checking separately.
+9. **Pointing the iOS app at it.** Set `DECIDE_API_HOST` in
+   `Config/Shared.xcconfig` to the deployed hostname only (e.g.
+   `api.example.com`, no scheme, no path) — `DECIDE_API_BASE_URL` assembles
+   the `https://` prefix around it, and `AppConfiguration.swift` reads the
+   result as `DecideAPIBaseURL`. An empty or non-HTTPS value is treated as
+   "not configured" rather than crashing.
+10. **Deployment-specific security checks.** Confirm: environment variables
+    are only ever set through the platform's secret mechanism, never appear
+    in build logs; the health-check path is the only thing reachable
+    without going through steps 5–7; and step 6 is genuinely true before
+    setting `DECIDE_TRUST_PROXY=1`. Error responses already never include a
+    stack trace or raw exception text — `AnalysisError` messages are fixed,
+    hardcoded strings — so there's nothing to configure there, just worth
+    confirming after deploying (see smoke tests below).
+
+### Deploying to Vercel specifically
+
+`api/index.ts` adapts `handle()` to Vercel's zero-config Node.js function
+convention for a bare `/api` file: `(request: IncomingMessage, response:
+ServerResponse)`, not the Fetch API `Request`/`Response` signature (that
+signature is for framework route handlers, e.g. Next.js App Router — a
+plain `/api/*.ts` file on Vercel gets the Node-style callback instead, with
+`request.headers` as a plain object). `vercel.json` rewrites every path to
+this one function and sets `outputDirectory: "public"` (Vercel's "Other"
+framework preset requires a static output directory even for an API-only
+project; `public/index.html` is an unreachable placeholder — the rewrite
+sends every real request to `/api/index` first).
+
+Steps specific to this host, beyond the generic list above:
+
+- **Deployment Protection.** New Vercel projects on a team enable Vercel
+  Authentication (SSO) by default, which redirects every request — including
+  `/healthz` — to a Vercel login page. Disable it for this project (Project
+  Settings → Deployment Protection) since the endpoint's own rate limiting
+  and (once configured) bearer token are the intended access control, not a
+  Vercel-account login wall.
+- **`DECIDE_TRUST_PROXY=1` is required here, not optional.** Vercel Functions
+  have no raw socket — `remoteAddress` is always empty — so without this set,
+  `resolveClientKey()` falls back to the literal string `"unknown"` for
+  *every* request, and the burst/daily rate limiters end up counting all
+  callers as a single shared identity instead of limiting each one
+  separately. This was confirmed live: a 25-request burst against a freshly
+  deployed, unconfigured instance hit the shared 429 after the 20th request
+  total, from a single test client — the correct per-client behavior only
+  starts once `DECIDE_TRUST_PROXY=1` is set and Vercel's edge is the only way
+  to reach the function (true by construction on this platform).
+- **Environment variables** are set in Project Settings → Environment
+  Variables, scoped to Production — never in `vercel.json` or any committed
+  file. There is no way to set them from outside Vercel's own dashboard or
+  CLI; a deploy that ships without `ANTHROPIC_API_KEY` set will accept
+  requests but fail every analysis call at the Anthropic SDK step.
+
+### Smoke tests after deploying
+
+Run in order; stop and investigate rather than continuing if one fails.
+Replace `$HOST` with the deployed hostname.
+
+```bash
+# 1. Reachable over real TLS, unauthenticated, no spend.
+curl -sSI "https://$HOST/healthz"
+# expect: 200, and a valid certificate (no -k needed)
+
+# 2. The security headers this build sets are actually the ones running.
+curl -sSI "https://$HOST/healthz" | grep -i "strict-transport-security\|x-content-type-options\|cache-control"
+
+# 3. Wrong route is 404, not a stack trace or a framework default page.
+curl -s -o /dev/null -w "%{http_code}\n" "https://$HOST/"
+
+# 4. If DECIDE_CLIENT_TOKEN is set: a request without it is rejected before
+#    anything is spent.
+curl -s -o /dev/null -w "%{http_code}\n" -X POST "https://$HOST/v1/decisions/analyze" \
+  -H "Content-Type: application/json" -d '{}'
+# expect: 401 (token set) or 400 (no token configured -- an empty body still
+# fails schema validation, so this also confirms validation runs)
+
+# 5. One real, deliberate, minimal-cost request -- confirms the full path
+#    (Anthropic call, schema validation, citation/budget enforcement) end to
+#    end. Uses complexity: simple / researchLevel: none to keep it cheap.
+curl -s -X POST "https://$HOST/v1/decisions/analyze" \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $DECIDE_CLIENT_TOKEN" \
+  -d '{
+    "schemaVersion": 1, "prompt": "Coffee or tea this morning?",
+    "answers": [], "knownPreferences": [], "category": "other",
+    "complexity": "simple", "researchLevel": "none",
+    "maximumResearchCalls": 0, "maximumSources": 0,
+    "questionsAlreadyAsked": 0, "questionCeiling": 0, "locale": "en_US"
+  }'
+# expect: 200 and a decisionStatus in the body -- this one costs real money,
+# so do it once, deliberately, not as part of a loop or a monitoring check.
+```
+
+## Known gap: who is allowed to call this
+
+There is currently no way to verify that a request came from a genuine copy of
+the app. `DECIDE_CLIENT_TOKEN` is a shared secret compiled into the app binary —
+extractable by anyone who decompiles it — so it raises the cost of casual
+discovery without stopping a motivated attacker. The real answer is Apple's
+App Attest: the app produces a per-request assertion and the server verifies it
+against the registered key. The hook is in `src/attest.ts`, and it is
+deliberately binary rather than partial: `DECIDE_REQUIRE_ATTESTATION=1` refuses
+*every* request (including real ones — there is no soft-pass), because a check
+that pretends to run is worse than an honest gap. It has not been implemented;
+turning it on is a kill switch, not a defense, until it is.
+
+Until App Attest exists, if this endpoint's URL becomes known, anyone can call
+it, gated only by the burst limit, the daily limit, the global concurrency cap,
+and — if set — the bearer token. None of those establish *identity*; they only
+bound the damage. Treat that as the actual security boundary this backend
+offers today, and size `DECIDE_RATE_LIMIT` / `DECIDE_DAILY_LIMIT` /
+`DECIDE_MAX_CONCURRENT_ANALYSES` for the worst case you can tolerate, not the
+expected case — see "Cost" below for what one request can cost at the ceiling.
+
+All three limiters (burst, daily, concurrency) are in-process. Deployed behind
+more than one instance, each instance enforces its own copy, so the effective
+ceiling multiplies by the instance count — either run a single instance until
+that matters, or back all three with a shared store.
+
+This also means the backend has no notion of Free vs. Pro: that limit lives
+entirely in the app's local state (`FeatureAccess` in
+`App/App/AppEnvironment.swift`) and this endpoint enforces no purchase of its
+own. Calling it directly, bypassing the app, gets the same access a paying
+user gets — one more reason the limits above should reflect the worst case,
+not the expected one.
+
+## Cost
+
+Effort is the cost lever, not a cheaper model: one model means one prompt cache
+and one set of API semantics, and low effort on the current model buys more
+quality per unit of spend than a downgrade. The map lives in `src/budget.ts`:
+
+| Complexity | Effort | Searches | Max tokens |
+|---|---|---|---|
+| simple | low | 0 | 8,000 |
+| medium | medium | up to 2 | 8,000 |
+| complex | high | up to 6 | 16,000 |
+
+The system prompt is cached, so the per-request cost is dominated by the decision
+itself rather than by the instructions.
+
+## The contract
+
+`src/schema.ts` mirrors `AIDecisionResponse` in
+`Packages/DecideKit/Sources/DecideCore/AI/AIContract.swift`. They are kept honest
+by a test on each side: the backend's contract test writes a real response to
+`Packages/DecideKit/Tests/DecideCoreTests/Fixtures/backend_contract.json`, and
+the Swift suite decodes and validates that same file. Break either side and both
+suites fail.

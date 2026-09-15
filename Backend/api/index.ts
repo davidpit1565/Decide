@@ -1,6 +1,17 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { handle } from "../src/handler.js";
 import { resolveClientKey } from "../src/rateLimit.js";
+import { hasUnreliableRateLimiting } from "../src/redis.js";
+
+if (hasUnreliableRateLimiting()) {
+  // Runs once per cold start, not per request -- loud enough to notice
+  // without spamming the logs on a warm instance.
+  console.warn(
+    "Redis is not configured (DECIDE_KV_KV_REST_API_URL/_TOKEN unset) -- on " +
+      "Vercel, requests can land on a fresh instance each time, so the rate " +
+      "and concurrency limits are not actually enforced. See README.md."
+  );
+}
 
 /**
  * Vercel's zero-config Node.js runtime for a bare /api file uses the

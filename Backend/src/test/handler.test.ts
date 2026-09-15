@@ -53,7 +53,9 @@ function request(overrides: Partial<Parameters<typeof handle>[0]> = {}) {
 test("health check responds without touching the model", async () => {
   const response = await handle(request({ method: "GET", path: "/healthz" }));
   assert.equal(response.status, 200);
-  assert.deepEqual(JSON.parse(response.body), { status: "ok" });
+  const body = JSON.parse(response.body);
+  assert.equal(body.status, "ok");
+  assert.equal(typeof body.redisConfigured, "boolean");
 });
 
 test("unknown routes are 404, not 500", async () => {

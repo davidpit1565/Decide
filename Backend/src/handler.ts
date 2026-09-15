@@ -4,6 +4,7 @@ import { analyse as defaultAnalyse, AnalysisError } from "./analyze.js";
 import { checkRateLimit, checkDailyLimit } from "./rateLimit.js";
 import { verifyClient } from "./attest.js";
 import { tryAcquire, release } from "./concurrency.js";
+import { isConfigured as isRedisConfigured } from "./redis.js";
 
 export interface HandlerRequest {
   method: string;
@@ -44,7 +45,10 @@ export async function handle(
   const analyse = deps.analyse ?? defaultAnalyse;
 
   if (request.method === "GET" && request.path === "/healthz") {
-    return json(200, { status: "ok" });
+    // redisConfigured is operational visibility, not a secret: whether the
+    // rate/concurrency limits are backed by Redis or the (cross-instance
+    // unreliable, on a serverless host) in-process fallback.
+    return json(200, { status: "ok", redisConfigured: isRedisConfigured() });
   }
 
   if (request.method !== "POST" || request.path !== "/v1/decisions/analyze") {
@@ -56,12 +60,12 @@ export async function handle(
     return json(client.status, { error: client.reason ?? "forbidden" });
   }
 
-  const limit = checkRateLimit(request.clientKey);
+  const limit = await checkRateLimit(request.clientKey);
   if (!limit.allowed) {
     return json(429, { error: "rate_limited" }, { "Retry-After": String(limit.retryAfterSeconds) });
   }
 
-  const daily = checkDailyLimit(request.clientKey);
+  const daily = await checkDailyLimit(request.clientKey);
   if (!daily.allowed) {
     return json(429, { error: "daily_limit_reached" }, { "Retry-After": String(daily.retryAfterSeconds) });
   }
@@ -86,7 +90,7 @@ export async function handle(
   // A ceiling on how many analyses can be in flight at once, independent of
   // client identity — see concurrency.ts for why identity alone is not enough.
   const maxConcurrent = Number(process.env.DECIDE_MAX_CONCURRENT_ANALYSES ?? 5);
-  if (!tryAcquire(maxConcurrent)) {
+  if (!(await tryAcquire(maxConcurrent))) {
     return json(503, { error: "server_busy" }, { "Retry-After": "2" });
   }
 
@@ -99,7 +103,7 @@ export async function handle(
     }
     return json(500, { error: "internal_error" });
   } finally {
-    release();
+    await release();
   }
 }
 

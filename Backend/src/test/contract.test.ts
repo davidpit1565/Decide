@@ -3,27 +3,26 @@ import test from "node:test";
 import { writeFileSync, mkdirSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { zodOutputFormat } from "@anthropic-ai/sdk/helpers/zod";
 import { DecisionResponseSchema, SCHEMA_VERSION } from "../schema.js";
+import { OUTPUT_FORMAT_INSTRUCTIONS } from "../prompt.js";
 import { toWireResponse } from "../validate.js";
 import { budgetFor } from "../budget.js";
 import { AnalysisRequestSchema } from "../schema.js";
 
 const here = dirname(fileURLToPath(import.meta.url));
 
-test("the output schema converts to a usable structured-output format", () => {
-  const format = zodOutputFormat(DecisionResponseSchema) as unknown as {
-    type: string;
-    schema?: Record<string, unknown>;
-  };
-  assert.equal(format.type, "json_schema");
-
-  // A structured-output schema has to be closed and fully required, or the model
-  // is free to omit fields the app depends on.
-  const schema = format.schema as { properties?: Record<string, unknown>; required?: string[] };
-  assert.ok(schema.properties, "the schema exposes its properties");
+test("the prompted output format embeds the real contract, not a stale copy", () => {
+  // Confirmed live: Anthropic's grammar-constrained structured output rejects
+  // this schema outright ("compiled grammar is too large"), so the contract is
+  // asked for by instruction instead (see analyze.ts) -- this only confirms
+  // the embedded schema is the actual one, not a hand-copied string that could
+  // drift from it.
+  const embeddedSchema = JSON.parse(
+    OUTPUT_FORMAT_INSTRUCTIONS.slice(OUTPUT_FORMAT_INSTRUCTIONS.indexOf("{"))
+  ) as { properties?: Record<string, unknown> };
+  assert.ok(embeddedSchema.properties, "the embedded schema exposes its properties");
   for (const key of ["decisionStatus", "criteria", "options", "recommendation"]) {
-    assert.ok(key in schema.properties!, `${key} is part of the contract`);
+    assert.ok(key in embeddedSchema.properties!, `${key} is part of the contract`);
   }
 });
 

@@ -2,27 +2,27 @@ import { strict as assert } from "node:assert";
 import test from "node:test";
 import { tryAcquire, release, currentlyActive, resetConcurrency } from "../concurrency.js";
 
-test("acquire succeeds up to the limit, then refuses", () => {
+test("acquire succeeds up to the limit, then refuses", async () => {
   resetConcurrency();
-  assert.equal(tryAcquire(2), true);
-  assert.equal(tryAcquire(2), true);
-  assert.equal(tryAcquire(2), false, "the third caller is over the limit");
-  assert.equal(currentlyActive(), 2);
+  assert.equal(await tryAcquire(2), true);
+  assert.equal(await tryAcquire(2), true);
+  assert.equal(await tryAcquire(2), false, "the third caller is over the limit");
+  assert.equal(await currentlyActive(), 2);
 });
 
-test("a released slot can be acquired again", () => {
+test("a released slot can be acquired again", async () => {
   resetConcurrency();
-  assert.equal(tryAcquire(1), true);
-  assert.equal(tryAcquire(1), false);
+  assert.equal(await tryAcquire(1), true);
+  assert.equal(await tryAcquire(1), false);
 
-  release();
-  assert.equal(currentlyActive(), 0);
-  assert.equal(tryAcquire(1), true);
+  await release();
+  assert.equal(await currentlyActive(), 0);
+  assert.equal(await tryAcquire(1), true);
 });
 
-test("release never goes negative, however many times it is called", () => {
+test("release never goes negative, however many times it is called", async () => {
   resetConcurrency();
-  release();
-  release();
-  assert.equal(currentlyActive(), 0);
+  await release();
+  await release();
+  assert.equal(await currentlyActive(), 0);
 });

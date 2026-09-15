@@ -1,3 +1,5 @@
+import { isConfigured, pipeline } from "./redis.js";
+
 /**
  * Two fixed-window limiters, per client: a short burst window, and a much
  * longer one behind it.
@@ -9,9 +11,9 @@
  * same burst behaviour a real user needs, but bounds the worst case from any
  * one identity over a sustained attack.
  *
- * Both are in-process, so they hold for a single instance. Behind more than
- * one instance, back them with a shared store — the interface is deliberately
- * small enough to swap.
+ * Backed by Redis when configured (see redis.ts) so the count actually holds
+ * across requests, wherever they land. Falls back to an in-process Map for
+ * local development and tests, where there is only ever one process anyway.
  */
 export interface RateLimitDecision {
   allowed: boolean;
@@ -26,19 +28,47 @@ interface Window {
 const burstWindows = new Map<string, Window>();
 const dailyWindows = new Map<string, Window>();
 
-export function checkRateLimit(clientKey: string, now: number = Date.now()): RateLimitDecision {
+export async function checkRateLimit(clientKey: string, now: number = Date.now()): Promise<RateLimitDecision> {
   const limit = Number(process.env.DECIDE_RATE_LIMIT ?? 20);
-  const windowMs = Number(process.env.DECIDE_RATE_WINDOW_SECONDS ?? 60) * 1000;
-  return checkWindow(burstWindows, clientKey, limit, windowMs, now);
+  const windowSeconds = Number(process.env.DECIDE_RATE_WINDOW_SECONDS ?? 60);
+  if (isConfigured()) return checkWindowRedis("burst", clientKey, limit, windowSeconds);
+  return checkWindowLocal(burstWindows, clientKey, limit, windowSeconds * 1000, now);
 }
 
-export function checkDailyLimit(clientKey: string, now: number = Date.now()): RateLimitDecision {
+export async function checkDailyLimit(clientKey: string, now: number = Date.now()): Promise<RateLimitDecision> {
   const limit = Number(process.env.DECIDE_DAILY_LIMIT ?? 200);
-  const windowMs = 24 * 60 * 60 * 1000;
-  return checkWindow(dailyWindows, clientKey, limit, windowMs, now);
+  const windowSeconds = 24 * 60 * 60;
+  if (isConfigured()) return checkWindowRedis("daily", clientKey, limit, windowSeconds);
+  return checkWindowLocal(dailyWindows, clientKey, limit, windowSeconds * 1000, now);
 }
 
-function checkWindow(
+/** EXPIRE ... NX only sets a TTL that isn't already there, so concurrent
+ * callers racing the first hit of a window can't keep pushing it back. */
+async function checkWindowRedis(
+  keyPrefix: string,
+  clientKey: string,
+  limit: number,
+  windowSeconds: number
+): Promise<RateLimitDecision> {
+  const key = `decide:rl:${keyPrefix}:${clientKey}`;
+  try {
+    const [count, , ttl] = await pipeline([
+      ["INCR", key],
+      ["EXPIRE", key, windowSeconds, "NX"],
+      ["TTL", key],
+    ]);
+    if (Number(count) <= limit) return { allowed: true, retryAfterSeconds: 0 };
+    const seconds = Number(ttl);
+    return { allowed: false, retryAfterSeconds: seconds > 0 ? seconds : windowSeconds };
+  } catch {
+    // Fails closed: a limiter that can't be reached must not become an
+    // unlimited one. This is the one deliberate availability cost of closing
+    // the cost-exposure gap the in-process counters left open on Vercel.
+    return { allowed: false, retryAfterSeconds: 5 };
+  }
+}
+
+function checkWindowLocal(
   store: Map<string, Window>,
   clientKey: string,
   limit: number,

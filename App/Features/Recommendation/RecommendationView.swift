@@ -11,6 +11,17 @@ struct RecommendationView: View {
 
     @State private var showingOtherOptions = false
     @State private var showingAnalysis = false
+    // DIAGNOSTIC ONLY -- remove once the CI failure below is understood. Proves
+    // or disproves whether this button's action ever runs at all: "Choose
+    // something else", built the same way (a plain Button, a .sheet), in the
+    // same fullScreenCover, on the same screen, reliably opens its sheet in
+    // CI -- so presentation itself isn't broken. Only "See analysis" (inside
+    // the ScrollView, unlike "Choose something else" in the fixed bottom bar)
+    // fails, with the screen completely unchanged afterwards. This flips the
+    // button's own label the moment its action runs, so the accessibility
+    // dump already captured on failure will show directly whether the tap
+    // ever reached it, without guessing at a fourth interaction fix.
+    @State private var sawAnalysisTap = false
 
     private var hasChosen: Bool { chosenOptionID != nil }
 
@@ -31,22 +42,19 @@ struct RecommendationView: View {
                     )
                 }
 
-                // A push (NavigationLink, then .navigationDestination(isPresented:))
-                // never completed here in CI on either device, even with a
-                // confirmed isHittable, real tap() -- yet the identical push from
-                // DecisionsView into DecisionDetailsView, a NavigationStack that
-                // isn't inside a fullScreenCover, works. RecommendationView's
-                // NavigationStack lives inside DecisionFlowView's fullScreenCover;
-                // pushing there is the one thing that doesn't work, while every
-                // plain state change on this exact screen (choosing an option,
-                // confirming a choice) does. So this presents modally instead of
-                // pushing -- a mechanism (.sheet) that doesn't go through
-                // UINavigationController's push/pop machinery at all.
+                // Three different mechanisms (NavigationLink push,
+                // .navigationDestination(isPresented:), and this .sheet) have
+                // all failed identically in CI: a confirmed isHittable, real
+                // tap() that produces no visible change at all. "Choose
+                // something else" below proves presentation itself works from
+                // this exact screen, so the difference is something else about
+                // this specific button -- see `sawAnalysisTap` above.
                 Button {
+                    sawAnalysisTap = true
                     showingAnalysis = true
                 } label: {
                     HStack {
-                        Text("See analysis")
+                        Text(sawAnalysisTap ? "See analysis (tap seen)" : "See analysis")
                             .font(DecideFont.callout.weight(.medium))
                         Image(systemName: "chevron.right")
                             .font(.caption.weight(.semibold))

@@ -67,7 +67,12 @@ export async function runResearch(
       }
     }
 
-    if (response.stop_reason !== "pause_turn") break;
+    // Resuming a paused turn is documented to continue it, not start a fresh
+    // one, so the original max_uses should already bound this loop. This
+    // enforces that invariant ourselves rather than trusting it silently: if
+    // it ever didn't hold, resuming again could multiply the searches spent
+    // on a single decision instead of merely finishing the same budget.
+    if (response.stop_reason !== "pause_turn" || searchesUsed >= budget.maxSearches) break;
     messages.push({ role: "assistant", content: response.content });
   }
 

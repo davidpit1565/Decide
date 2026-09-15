@@ -2,7 +2,23 @@ import { strict as assert } from "node:assert";
 import test from "node:test";
 import { handle } from "../handler.js";
 import { resetRateLimits, resolveClientKey } from "../rateLimit.js";
+import { resetConcurrency } from "../concurrency.js";
 import { AnalysisRequestSchema, SCHEMA_VERSION } from "../schema.js";
+import type { WireResponse } from "../schema.js";
+
+/** A fake analyse() whose completion this test controls, so it can hold a
+ * concurrency slot open on purpose instead of racing a real timer. */
+function controllableAnalyse() {
+  let release!: () => void;
+  const gate = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  const analyse = async (): Promise<WireResponse> => {
+    await gate;
+    return { schemaVersion: SCHEMA_VERSION } as unknown as WireResponse;
+  };
+  return { analyse, release };
+}
 
 function validBody(overrides: Record<string, unknown> = {}) {
   return JSON.stringify({
@@ -114,6 +130,72 @@ test("responses are not cacheable and are typed", async () => {
   assert.equal(response.headers["Cache-Control"], "no-store");
   assert.equal(response.headers["Content-Type"], "application/json");
   assert.equal(response.headers["X-Content-Type-Options"], "nosniff");
+  assert.ok(response.headers["Strict-Transport-Security"]?.includes("max-age"));
+});
+
+test("the daily limit trips even while the burst window is nowhere near full", async () => {
+  resetRateLimits();
+  process.env.DECIDE_RATE_LIMIT = "100";
+  process.env.DECIDE_DAILY_LIMIT = "2";
+  const key = "sustained-client";
+
+  for (let index = 0; index < 2; index += 1) {
+    const response = await handle(request({ clientKey: key, body: "{bad" }));
+    assert.equal(response.status, 400, "within the daily limit, the request is processed");
+  }
+
+  const blocked = await handle(request({ clientKey: key, body: "{bad" }));
+  assert.equal(blocked.status, 429);
+  assert.equal(JSON.parse(blocked.body).error, "daily_limit_reached");
+  assert.ok(Number(blocked.headers["Retry-After"]) > 0);
+
+  delete process.env.DECIDE_RATE_LIMIT;
+  delete process.env.DECIDE_DAILY_LIMIT;
+  resetRateLimits();
+});
+
+test("a global concurrency cap holds even across many client identities", async () => {
+  resetConcurrency();
+  process.env.DECIDE_MAX_CONCURRENT_ANALYSES = "2";
+
+  const { analyse, release } = controllableAnalyse();
+
+  // Three different identities: the cap has to hold with no shared client key
+  // to hang the block on, or a spoofed identity would buy a spoofed slot.
+  const first = handle(request({ clientKey: "a" }), { analyse });
+  const second = handle(request({ clientKey: "b" }), { analyse });
+  await new Promise((resolve) => setImmediate(resolve));
+
+  const third = await handle(request({ clientKey: "c" }), { analyse });
+  assert.equal(third.status, 503, "a third identity does not buy a third concurrent slot");
+  assert.equal(JSON.parse(third.body).error, "server_busy");
+  assert.ok(Number(third.headers["Retry-After"]) > 0);
+
+  release();
+  const [firstResult, secondResult] = await Promise.all([first, second]);
+  assert.equal(firstResult.status, 200);
+  assert.equal(secondResult.status, 200);
+
+  delete process.env.DECIDE_MAX_CONCURRENT_ANALYSES;
+  resetConcurrency();
+});
+
+test("a slot is released even when the analysis throws", async () => {
+  resetConcurrency();
+  process.env.DECIDE_MAX_CONCURRENT_ANALYSES = "1";
+
+  const failing = async (): Promise<WireResponse> => {
+    throw new Error("boom");
+  };
+  const first = await handle(request({ clientKey: "a" }), { analyse: failing });
+  assert.equal(first.status, 500);
+
+  // If the slot had leaked, this would come back 503 instead.
+  const second = await handle(request({ clientKey: "b" }), { analyse: failing });
+  assert.equal(second.status, 500);
+
+  delete process.env.DECIDE_MAX_CONCURRENT_ANALYSES;
+  resetConcurrency();
 });
 
 test("the request contract accepts what the app actually sends", () => {

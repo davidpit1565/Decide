@@ -35,6 +35,12 @@ export function verifyClient(headers: Record<string, string | undefined>): Clien
   return { ok: true, status: 200 };
 }
 
+/** True when verifyClient() lets every request through, whatever it claims to
+ * be — the exact condition the server warns about loudly at startup. */
+export function hasNoClientVerification(): boolean {
+  return !process.env.DECIDE_CLIENT_TOKEN && process.env.DECIDE_REQUIRE_ATTESTATION !== "1";
+}
+
 function timingSafeEqual(a: string, b: string): boolean {
   const left = Buffer.from(a, "utf8");
   const right = Buffer.from(b, "utf8");

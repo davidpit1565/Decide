@@ -1,8 +1,9 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { AnalysisRequestSchema } from "./schema.js";
-import { analyse, AnalysisError } from "./analyze.js";
-import { checkRateLimit } from "./rateLimit.js";
+import { analyse as defaultAnalyse, AnalysisError } from "./analyze.js";
+import { checkRateLimit, checkDailyLimit } from "./rateLimit.js";
 import { verifyClient } from "./attest.js";
+import { tryAcquire, release } from "./concurrency.js";
 
 export interface HandlerRequest {
   method: string;
@@ -18,6 +19,12 @@ export interface HandlerResponse {
   body: string;
 }
 
+/** Only ever overridden by tests, so they can drive the concurrency gate
+ * without a real (or fake-but-slow) model call. */
+export interface HandlerDependencies {
+  analyse?: typeof defaultAnalyse;
+}
+
 let cachedClient: Anthropic | null = null;
 
 function getClient(): Anthropic {
@@ -30,7 +37,12 @@ function getClient(): Anthropic {
 }
 
 /** Framework-agnostic so the same code runs standalone or on a serverless host. */
-export async function handle(request: HandlerRequest): Promise<HandlerResponse> {
+export async function handle(
+  request: HandlerRequest,
+  deps: HandlerDependencies = {}
+): Promise<HandlerResponse> {
+  const analyse = deps.analyse ?? defaultAnalyse;
+
   if (request.method === "GET" && request.path === "/healthz") {
     return json(200, { status: "ok" });
   }
@@ -47,6 +59,11 @@ export async function handle(request: HandlerRequest): Promise<HandlerResponse> 
   const limit = checkRateLimit(request.clientKey);
   if (!limit.allowed) {
     return json(429, { error: "rate_limited" }, { "Retry-After": String(limit.retryAfterSeconds) });
+  }
+
+  const daily = checkDailyLimit(request.clientKey);
+  if (!daily.allowed) {
+    return json(429, { error: "daily_limit_reached" }, { "Retry-After": String(daily.retryAfterSeconds) });
   }
 
   if (request.body.length > 32_000) {
@@ -66,14 +83,23 @@ export async function handle(request: HandlerRequest): Promise<HandlerResponse> 
     return json(400, { error: "invalid_request" });
   }
 
+  // A ceiling on how many analyses can be in flight at once, independent of
+  // client identity — see concurrency.ts for why identity alone is not enough.
+  const maxConcurrent = Number(process.env.DECIDE_MAX_CONCURRENT_ANALYSES ?? 5);
+  if (!tryAcquire(maxConcurrent)) {
+    return json(503, { error: "server_busy" }, { "Retry-After": "2" });
+  }
+
   try {
     const result = await analyse(getClient(), parsed.data);
     return json(200, result);
   } catch (error) {
     if (error instanceof AnalysisError) {
-      return json(error.status === 422 ? 422 : error.status, { error: error.message });
+      return json(error.status, { error: error.message });
     }
     return json(500, { error: "internal_error" });
+  } finally {
+    release();
   }
 }
 
@@ -84,6 +110,7 @@ function json(status: number, body: unknown, extraHeaders: Record<string, string
       "Content-Type": "application/json",
       "Cache-Control": "no-store",
       "X-Content-Type-Options": "nosniff",
+      "Strict-Transport-Security": "max-age=63072000; includeSubDomains",
       ...extraHeaders,
     },
     body: JSON.stringify(body),

@@ -50,14 +50,18 @@ domain that only the account owner can provide.
    provider declaration.
 
 9. **App Attest (recommended before any real traffic)**
-   The endpoint is currently protected by rate limiting alone. `Backend/src/attest.ts`
-   is the hook; until it is implemented, anyone who finds the URL can spend your
-   model budget. See the "Known gap" section in `Backend/README.md`.
+   The endpoint is currently protected by a burst rate limit, a daily limit and
+   a global concurrency cap — none of which establish identity, only bound the
+   damage. `Backend/src/attest.ts` is the hook; until it is implemented, anyone
+   who finds the URL can still spend your model budget, just within those
+   ceilings. See the "Known gap" section in `Backend/README.md`, and size
+   `DECIDE_RATE_LIMIT` / `DECIDE_DAILY_LIMIT` / `DECIDE_MAX_CONCURRENT_ANALYSES`
+   (in `Backend/.env.example`) for the worst case before going live.
 
 ## Before you archive
 
 - [ ] `cd Packages/DecideKit && swift test` — 142 tests
-- [ ] `cd Backend && npm test` — 31 tests
+- [ ] `cd Backend && npm test` — 43 tests
 - [ ] Product ▸ Test in Xcode — app-layer and UI tests on a simulator
 - [ ] Run once on a small device (iPhone SE) and a large one, in both appearances
 - [ ] Settings ▸ Accessibility ▸ Larger Text at the largest size: no clipped

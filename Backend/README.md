@@ -65,6 +65,111 @@ Set in the environment, never in code:
 | `DECIDE_CLIENT_TOKEN` | Optional bearer token. Coarse filter only — see below. |
 | `DECIDE_REQUIRE_ATTESTATION` | `1` refuses every request until App Attest is implemented. |
 
+### First production deployment
+
+Nothing here needs a framework, a container, or new infrastructure: the
+existing `npm run build && npm start` already produces exactly what
+production runs. Any host that can run a persistent Node process and put
+real TLS in front of it — a small VPS behind a reverse proxy, or a
+platform-as-a-service that terminates HTTPS for you — is enough.
+
+1. **Runtime.** Node 20 or newer (`engines` in `package.json`); CI runs 22, so
+   prefer 22 to run on exactly what was tested.
+2. **Build and start.**
+   ```bash
+   npm ci
+   npm run build     # tsc -> dist/
+   npm start         # node dist/index.js
+   ```
+   `PORT` (default `8787`) is the only thing the process itself reads for its
+   listen address.
+3. **TLS.** `src/index.ts` is a plain `http.createServer` — it does not
+   terminate TLS itself. Something in front of it must: the platform's own
+   HTTPS layer, or a reverse proxy (Caddy, nginx) with a real certificate.
+   The iOS app refuses anything that isn't `https://` with a non-empty host
+   (verified in `AppConfiguration.swift`), so a plain-HTTP deployment simply
+   won't be reachable from the app at all.
+4. **Health check.** `GET /healthz` — no auth, no rate limit, no model call,
+   answers `{"status":"ok"}` immediately. Point the platform's own health
+   probe at this path.
+5. **Secrets.** Set `ANTHROPIC_API_KEY` (and `DECIDE_CLIENT_TOKEN`, if used)
+   through the platform's secret/environment store — never in a committed
+   file. `.env` is git-ignored; only `.env.example`, which holds no real
+   value, is tracked.
+6. **Proxy configuration.** If the platform puts its own load balancer or
+   CDN in front of this process, set `DECIDE_TRUST_PROXY=1` *and* confirm
+   the process itself is not separately reachable from the public internet
+   (most PaaS platforms guarantee this by construction; a self-managed VPS
+   needs an explicit firewall rule). If you're not certain both are true,
+   leave it unset — an overly strict shared rate-limit bucket is a much
+   smaller problem than a forgeable one.
+7. **Rate, daily and concurrency limits.** Ship with the defaults
+   (`DECIDE_RATE_LIMIT=20`, `DECIDE_DAILY_LIMIT=200`,
+   `DECIDE_MAX_CONCURRENT_ANALYSES=5`) unless you have a specific reason to
+   tighten them for a first controlled rollout — they are safe starting
+   points, not requirements to change.
+8. **Timeouts.** `requestTimeout` / `headersTimeout` / `keepAliveTimeout` are
+   set in `src/index.ts` and apply as long as this process is what's
+   actually listening. They do **not** apply if you instead port `handle()`
+   into a serverless function (still possible — it's framework-agnostic by
+   design — but that's a different deployment shape than what's committed
+   today); in that case the platform's own timeout setting is what governs,
+   and needs checking separately.
+9. **Pointing the iOS app at it.** Set `DECIDE_API_HOST` in
+   `Config/Shared.xcconfig` to the deployed hostname only (e.g.
+   `api.example.com`, no scheme, no path) — `DECIDE_API_BASE_URL` assembles
+   the `https://` prefix around it, and `AppConfiguration.swift` reads the
+   result as `DecideAPIBaseURL`. An empty or non-HTTPS value is treated as
+   "not configured" rather than crashing.
+10. **Deployment-specific security checks.** Confirm: environment variables
+    are only ever set through the platform's secret mechanism, never appear
+    in build logs; the health-check path is the only thing reachable
+    without going through steps 5–7; and step 6 is genuinely true before
+    setting `DECIDE_TRUST_PROXY=1`. Error responses already never include a
+    stack trace or raw exception text — `AnalysisError` messages are fixed,
+    hardcoded strings — so there's nothing to configure there, just worth
+    confirming after deploying (see smoke tests below).
+
+### Smoke tests after deploying
+
+Run in order; stop and investigate rather than continuing if one fails.
+Replace `$HOST` with the deployed hostname.
+
+```bash
+# 1. Reachable over real TLS, unauthenticated, no spend.
+curl -sSI "https://$HOST/healthz"
+# expect: 200, and a valid certificate (no -k needed)
+
+# 2. The security headers this build sets are actually the ones running.
+curl -sSI "https://$HOST/healthz" | grep -i "strict-transport-security\|x-content-type-options\|cache-control"
+
+# 3. Wrong route is 404, not a stack trace or a framework default page.
+curl -s -o /dev/null -w "%{http_code}\n" "https://$HOST/"
+
+# 4. If DECIDE_CLIENT_TOKEN is set: a request without it is rejected before
+#    anything is spent.
+curl -s -o /dev/null -w "%{http_code}\n" -X POST "https://$HOST/v1/decisions/analyze" \
+  -H "Content-Type: application/json" -d '{}'
+# expect: 401 (token set) or 400 (no token configured -- an empty body still
+# fails schema validation, so this also confirms validation runs)
+
+# 5. One real, deliberate, minimal-cost request -- confirms the full path
+#    (Anthropic call, schema validation, citation/budget enforcement) end to
+#    end. Uses complexity: simple / researchLevel: none to keep it cheap.
+curl -s -X POST "https://$HOST/v1/decisions/analyze" \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $DECIDE_CLIENT_TOKEN" \
+  -d '{
+    "schemaVersion": 1, "prompt": "Coffee or tea this morning?",
+    "answers": [], "knownPreferences": [], "category": "other",
+    "complexity": "simple", "researchLevel": "none",
+    "maximumResearchCalls": 0, "maximumSources": 0,
+    "questionsAlreadyAsked": 0, "questionCeiling": 0, "locale": "en_US"
+  }'
+# expect: 200 and a decisionStatus in the body -- this one costs real money,
+# so do it once, deliberately, not as part of a loop or a monitoring check.
+```
+
 ## Known gap: who is allowed to call this
 
 There is currently no way to verify that a request came from a genuine copy of

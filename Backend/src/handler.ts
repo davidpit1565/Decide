@@ -4,6 +4,7 @@ import { analyse as defaultAnalyse, AnalysisError } from "./analyze.js";
 import { checkRateLimit, checkDailyLimit } from "./rateLimit.js";
 import { verifyClient } from "./attest.js";
 import { tryAcquire, release } from "./concurrency.js";
+import { isConfigured as isRedisConfigured } from "./redis.js";
 
 export interface HandlerRequest {
   method: string;
@@ -44,7 +45,10 @@ export async function handle(
   const analyse = deps.analyse ?? defaultAnalyse;
 
   if (request.method === "GET" && request.path === "/healthz") {
-    return json(200, { status: "ok" });
+    // redisConfigured is operational visibility, not a secret: whether the
+    // rate/concurrency limits are backed by Redis or the (cross-instance
+    // unreliable, on a serverless host) in-process fallback.
+    return json(200, { status: "ok", redisConfigured: isRedisConfigured() });
   }
 
   if (request.method !== "POST" || request.path !== "/v1/decisions/analyze") {

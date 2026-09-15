@@ -39,7 +39,7 @@ iPhone  ->  POST /v1/decisions/analyze  ->  Anthropic API  ->  validated JSON  -
 ```bash
 cp .env.example .env     # add your ANTHROPIC_API_KEY
 npm install
-npm test                 # 43 tests, no network, no spend
+npm test                 # 54 tests, no network, no spend
 npm run build && npm start
 ```
 
@@ -64,6 +64,31 @@ Set in the environment, never in code:
 | `DECIDE_TRUST_PROXY` | `1` only if a proxy you control sets `x-forwarded-for` *and* the origin is not otherwise reachable. Read `.env.example` before setting this — wrong in either direction is a real problem, not a formality. |
 | `DECIDE_CLIENT_TOKEN` | Optional bearer token. Coarse filter only — see below. |
 | `DECIDE_REQUIRE_ATTESTATION` | `1` refuses every request until App Attest is implemented. |
+| `DECIDE_KV_KV_REST_API_URL`, `DECIDE_KV_KV_REST_API_TOKEN` | Upstash Redis REST credentials (`src/redis.ts`). Required for the rate and concurrency limits to actually hold — see below. The doubled "KV" is not a typo, just what Vercel's Upstash integration produced for this project's variable prefix. |
+
+### Why the limits need Redis on a serverless host
+
+`checkRateLimit`, `checkDailyLimit` and the concurrency cap were originally
+in-process counters. That is fine behind a single long-lived process, but on
+Vercel it is not a corner case that gets hit occasionally — confirmed live,
+eight consecutive requests to the same endpoint each landed on a distinct
+execution instance with its own memory, so an in-process counter never
+accumulated a count at all. Without Redis configured, the limits are
+effectively not enforced on this host, whatever their configured values say.
+
+`src/redis.ts` talks to Upstash's REST API directly (a single `fetch` per
+pipeline call, no SDK dependency) whenever `DECIDE_KV_KV_REST_API_URL` and
+`DECIDE_KV_KV_REST_API_TOKEN` are set, and every limiter falls back to the
+original in-process counters otherwise — which is exactly right for local
+development and for the test suite, where there is only ever one process.
+`hasUnreliableRateLimiting()` warns once per cold start on Vercel if Redis
+is not configured, so this is never a silent gap.
+
+If Redis itself is unreachable, every limiter **fails closed** — a request is
+treated as rate-limited or refused a concurrency slot rather than allowed
+through unconditionally. This trades a temporary outage during a genuine
+Redis incident for keeping the cost-exposure protection intact; it does not
+fail open just because the failure would be inconvenient to hit.
 
 ### First production deployment
 

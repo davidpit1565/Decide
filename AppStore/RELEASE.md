@@ -56,8 +56,8 @@ domain that only the account owner can provide.
 
 ## Before you archive
 
-- [ ] `cd Packages/DecideKit && swift test` — 135 tests
-- [ ] `cd Backend && npm test` — 29 tests
+- [ ] `cd Packages/DecideKit && swift test` — 142 tests
+- [ ] `cd Backend && npm test` — 31 tests
 - [ ] Product ▸ Test in Xcode — app-layer and UI tests on a simulator
 - [ ] Run once on a small device (iPhone SE) and a large one, in both appearances
 - [ ] Settings ▸ Accessibility ▸ Larger Text at the largest size: no clipped

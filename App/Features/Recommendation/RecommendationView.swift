@@ -9,18 +9,21 @@ struct RecommendationView: View {
     let onChoose: (String) -> Void
     let onDone: () -> Void
 
-    @State private var showingOtherOptions = false
-    @State private var showingAnalysis = false
-    // DIAGNOSTIC ONLY -- remove once the CI failure below is understood. Proves
-    // or disproves whether this button's action ever runs at all: "Choose
-    // something else", built the same way (a plain Button, a .sheet), in the
-    // same fullScreenCover, on the same screen, reliably opens its sheet in
-    // CI -- so presentation itself isn't broken. Only "See analysis" (inside
-    // the ScrollView, unlike "Choose something else" in the fixed bottom bar)
-    // fails, with the screen completely unchanged afterwards. This flips the
-    // button's own label the moment its action runs, so the accessibility
-    // dump already captured on failure will show directly whether the tap
-    // ever reached it, without guessing at a fourth interaction fix.
+    private enum Presentation: Identifiable {
+        case otherOptions
+        case analysis
+        var id: Self { self }
+    }
+
+    @State private var presentation: Presentation?
+    // DIAGNOSTIC ONLY -- remove once the CI failure below is understood. The
+    // label proved the button's action never ran at all: after tapping,
+    // CI's own accessibility dump still showed "See analysis", unchanged.
+    // "Choose something else" (same Button/.sheet shape, same screen) fires
+    // reliably, and the two boolean .sheet(isPresented:) modifiers stacked on
+    // this same view are a known SwiftUI trouble spot, so this consolidates
+    // both into one .sheet(item:). If the label still doesn't flip after
+    // this, stacking wasn't the cause either.
     @State private var sawAnalysisTap = false
 
     private var hasChosen: Bool { chosenOptionID != nil }
@@ -51,7 +54,7 @@ struct RecommendationView: View {
                 // this specific button -- see `sawAnalysisTap` above.
                 Button {
                     sawAnalysisTap = true
-                    showingAnalysis = true
+                    presentation = .analysis
                 } label: {
                     HStack {
                         Text(sawAnalysisTap ? "See analysis (tap seen)" : "See analysis")
@@ -72,20 +75,22 @@ struct RecommendationView: View {
         .safeAreaInset(edge: .bottom) {
             bottomAction
         }
-        .sheet(isPresented: $showingOtherOptions) {
-            OtherOptionsSheet(result: result) { optionID in
-                showingOtherOptions = false
-                onChoose(optionID)
-            }
-        }
-        .sheet(isPresented: $showingAnalysis) {
-            NavigationStack {
-                AnalysisView(result: result)
-                    .toolbar {
-                        ToolbarItem(placement: .topBarTrailing) {
-                            Button("Done") { showingAnalysis = false }
+        .sheet(item: $presentation) { item in
+            switch item {
+            case .otherOptions:
+                OtherOptionsSheet(result: result) { optionID in
+                    presentation = nil
+                    onChoose(optionID)
+                }
+            case .analysis:
+                NavigationStack {
+                    AnalysisView(result: result)
+                        .toolbar {
+                            ToolbarItem(placement: .topBarTrailing) {
+                                Button("Done") { presentation = nil }
+                            }
                         }
-                    }
+                }
             }
         }
     }
@@ -101,7 +106,7 @@ struct RecommendationView: View {
                     onChoose(recommended.id)
                 }
                 if result.ranking.count > 1 {
-                    Button("Choose something else") { showingOtherOptions = true }
+                    Button("Choose something else") { presentation = .otherOptions }
                         .font(DecideFont.footnote)
                         .frame(minHeight: DecideSpacing.minimumTouchTarget)
                         .accessibilityIdentifier(DecideID.chooseSomethingElse)

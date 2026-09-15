@@ -8,3 +8,7 @@ DEBUG_INFORMATION_FORMAT = dwarf-with-dsym
 
 // No debug-only behaviour, no test data, no mock services in a release build.
 SWIFT_ACTIVE_COMPILATION_CONDITIONS =
+
+// Production backend (Vercel). Host only — Shared.xcconfig's $(HTTPS) macro
+// supplies the "https://" scheme, so no scheme/protocol prefix goes here.
+DECIDE_API_HOST = decide-mu-navy.vercel.app

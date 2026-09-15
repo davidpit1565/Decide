@@ -130,6 +130,43 @@ platform-as-a-service that terminates HTTPS for you — is enough.
     hardcoded strings — so there's nothing to configure there, just worth
     confirming after deploying (see smoke tests below).
 
+### Deploying to Vercel specifically
+
+`api/index.ts` adapts `handle()` to Vercel's zero-config Node.js function
+convention for a bare `/api` file: `(request: IncomingMessage, response:
+ServerResponse)`, not the Fetch API `Request`/`Response` signature (that
+signature is for framework route handlers, e.g. Next.js App Router — a
+plain `/api/*.ts` file on Vercel gets the Node-style callback instead, with
+`request.headers` as a plain object). `vercel.json` rewrites every path to
+this one function and sets `outputDirectory: "public"` (Vercel's "Other"
+framework preset requires a static output directory even for an API-only
+project; `public/index.html` is an unreachable placeholder — the rewrite
+sends every real request to `/api/index` first).
+
+Steps specific to this host, beyond the generic list above:
+
+- **Deployment Protection.** New Vercel projects on a team enable Vercel
+  Authentication (SSO) by default, which redirects every request — including
+  `/healthz` — to a Vercel login page. Disable it for this project (Project
+  Settings → Deployment Protection) since the endpoint's own rate limiting
+  and (once configured) bearer token are the intended access control, not a
+  Vercel-account login wall.
+- **`DECIDE_TRUST_PROXY=1` is required here, not optional.** Vercel Functions
+  have no raw socket — `remoteAddress` is always empty — so without this set,
+  `resolveClientKey()` falls back to the literal string `"unknown"` for
+  *every* request, and the burst/daily rate limiters end up counting all
+  callers as a single shared identity instead of limiting each one
+  separately. This was confirmed live: a 25-request burst against a freshly
+  deployed, unconfigured instance hit the shared 429 after the 20th request
+  total, from a single test client — the correct per-client behavior only
+  starts once `DECIDE_TRUST_PROXY=1` is set and Vercel's edge is the only way
+  to reach the function (true by construction on this platform).
+- **Environment variables** are set in Project Settings → Environment
+  Variables, scoped to Production — never in `vercel.json` or any committed
+  file. There is no way to set them from outside Vercel's own dashboard or
+  CLI; a deploy that ships without `ANTHROPIC_API_KEY` set will accept
+  requests but fail every analysis call at the Anthropic SDK step.
+
 ### Smoke tests after deploying
 
 Run in order; stop and investigate rather than continuing if one fails.

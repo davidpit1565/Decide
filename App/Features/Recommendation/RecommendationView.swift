@@ -16,14 +16,6 @@ struct RecommendationView: View {
     }
 
     @State private var presentation: Presentation?
-    // DIAGNOSTIC ONLY -- remove once this CI run confirms the fix below. Kept
-    // from the investigation that found it: CI's own accessibility dump,
-    // captured on failure, kept showing this button's label as plain
-    // "See analysis" no matter which presentation mechanism followed the tap
-    // (NavigationLink, .navigationDestination, two .sheet variants) -- proof
-    // the action closure itself never ran. Now that the button has moved out
-    // of the ScrollView into the fixed bottom bar, this should finally flip.
-    @State private var sawAnalysisTap = false
 
     private var hasChosen: Bool { chosenOptionID != nil }
 
@@ -82,8 +74,8 @@ struct RecommendationView: View {
                     onChoose(recommended.id)
                 }
                 // Lived inside the ScrollView content before; a confirmed
-                // isHittable, real tap() on it there never fired its action in
-                // CI, on either device, across five different presentation
+                // isHittable, real tap() on it there never fired its action,
+                // in CI, on either device, across five different presentation
                 // mechanisms (NavigationLink, navigationDestination, two
                 // sheet variants). "Choose something else" right below --
                 // built the same way, always in this fixed bar -- fires
@@ -91,11 +83,10 @@ struct RecommendationView: View {
                 // fixed bar removes the one variable every other fix left
                 // unchanged: being inside the scrollable content.
                 Button {
-                    sawAnalysisTap = true
                     presentation = .analysis
                 } label: {
                     HStack {
-                        Text(sawAnalysisTap ? "See analysis (tap seen)" : "See analysis")
+                        Text("See analysis")
                         Image(systemName: "chevron.right")
                             .font(.caption.weight(.semibold))
                     }

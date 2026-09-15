@@ -48,6 +48,15 @@ export async function analyse(client: Anthropic, request: AnalysisRequest): Prom
       messages: [{ role: "user", content: buildUserMessage(request, budget, researchNotes) }],
     });
   } catch (error) {
+    // Server-side only, never sent to the client: just enough to diagnose an
+    // upstream failure (type, HTTP status, Anthropic's own message) without
+    // logging the request, the response, or anything from process.env.
+    if (error instanceof APIError) {
+      console.error("Anthropic API error", { name: error.constructor.name, status: error.status, message: error.message });
+    } else {
+      console.error("analyse() failed before an API response", error instanceof Error ? error.message : error);
+    }
+
     if (error instanceof RateLimitError) {
       throw new AnalysisError("rate_limited_upstream", 429);
     }

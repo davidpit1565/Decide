@@ -240,6 +240,32 @@ final class DecideUITests: XCTestCase {
         XCTAssertTrue(hasText("What I checked"))
     }
 
+    /// Isolates whether *any* presentation (not just "See analysis") can appear
+    /// from this exact screen, inside DecisionFlowView's fullScreenCover.
+    ///
+    /// "See analysis" has now failed identically as a NavigationLink, as
+    /// .navigationDestination(isPresented:), and as .sheet(isPresented:) --
+    /// three mechanisms with nothing in common except where they're triggered
+    /// from. "Choose something else" opens its own, already-shipped .sheet
+    /// from this identical screen, needs no scrolling (it lives in the fixed
+    /// bottom bar), and no test has ever exercised it. If it fails too, the
+    /// bug isn't in "See analysis" at all -- it's that no presentation can be
+    /// triggered from anywhere inside this fullScreenCover in this
+    /// environment, and the real fix is to stop presenting new screens from
+    /// here rather than trying a fourth presentation mechanism.
+    func testChoosingSomethingElseOpensTheOptionsSheet() {
+        launch(scenario: "straightforward")
+        startDecision()
+        waitForText("My recommendation: MacBook Air")
+
+        app.buttons[ID.chooseSomethingElse].tap()
+
+        XCTAssertTrue(
+            waitForText("Your options", timeout: 10),
+            "Choosing something else should open the options sheet"
+        )
+    }
+
     // MARK: Questions
 
     func testExactlyOneQuestionIsAskedAndNeverCounted() {
